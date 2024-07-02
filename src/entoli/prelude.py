@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import builtins
+from copy import deepcopy
 import functools
 from dataclasses import dataclass
 import itertools
@@ -345,19 +346,62 @@ def _test_concat_map():
 
 # Infinite lists
 
-# todo iterate, repeat, replicate, cycle
+
+def iterate(f: Callable[[_A], _A], x: _A) -> Iterable[_A]:
+    def _iterate():
+        x_ = deepcopy(x)
+        while True:
+            yield x_
+            x_ = f(x_)
+
+    return Seq(_iterate)
+
+
+def _test_iterate():
+    nat = iterate(lambda x: x + 1, 0)
+    assert take(3, nat) == [0, 1, 2]
+
+
+def repeat(x: _A) -> Iterable[_A]:
+    def _repeat():
+        while True:
+            yield x
+
+    return Seq(_repeat)
+
+
+def _test_repeat():
+    assert take(3, repeat(1)) == [1, 1, 1]
+
+
+def replicate(n: int, x: _A) -> Iterable[_A]:
+    def _replicate():
+        for _ in range(n):
+            yield x
+
+    return Seq(_replicate)
+
+
+def _test_replicate():
+    assert replicate(0, 1) == []
+    assert replicate(1, 1) == [1]
+    assert replicate(2, 1) == [1, 1]
+
+
+def cycle(xs: Iterable[_A]) -> Iterable[_A]:
+    return Seq(lambda: itertools.cycle(xs))
+
+
+def _test_cycle():
+    assert take(3, cycle([])) == []
+    assert take(3, cycle([1])) == [1, 1, 1]
+    assert take(3, cycle([1, 2])) == [1, 2, 1]
 
 
 # Sublists
 
 
 def take(n: int, xs: Iterable[_A]) -> Iterable[_A]:
-    # def _take():
-    #     it = iter(xs)
-    #     for _ in range(n):
-    #         yield next(it)
-
-    # return Seq(_take)
     return Seq(lambda: itertools.islice(xs, n))
 
 
