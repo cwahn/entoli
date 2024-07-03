@@ -258,6 +258,10 @@ def _test_init():
 
 
 def nth(xs: Iterable[_A], n: int) -> _A:
+    """
+    Return the n-th element of the iterable.
+    The iterable must have at least n elements.
+    """
     return next(x for i, x in enumerate(xs) if i == n)
 
 
