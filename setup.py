@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="entoli",
-    version="0.1.4",
+    version="0.1.5",
     author="Chanwoo Ahn",
     author_email="cwahn0904@gmail.com",
     description="A Python functional programming library",
