@@ -135,11 +135,6 @@ def _test_map():
 
 
 def append(xs: Iterable[_A], ys: Iterable[_A]) -> Iterable[_A]:
-    # def _append():
-    #     yield from xs
-    #     yield from ys
-
-    # return Seq(_append)
     return Seq(lambda: itertools.chain(xs, ys))
 
 
@@ -342,7 +337,64 @@ def _test_concat_map():
 
 # Building lists
 
-# todo scanl, scanl1, scanr, scanr1
+
+def scanl(f: Callable[[_B, _A], _B], acc: _B, xs: Iterable[_A]) -> Iterable[_B]:
+    def _scanl():
+        acc_mut = deepcopy(acc)
+        yield acc_mut
+        for x in xs:
+            acc_mut = f(acc_mut, x)
+            yield acc_mut
+
+    return Seq(_scanl)
+
+
+def _test_scanl():
+    assert scanl(lambda acc, x: acc + x, 0, []) == [0]
+    assert scanl(lambda acc, x: acc + x, 0, [1]) == [0, 1]
+    assert scanl(lambda acc, x: acc + x, 0, [1, 2]) == [0, 1, 3]
+
+
+def scanl1(f: Callable[[_A, _A], _A], xs: Iterable[_A]) -> Seq[_A]:
+    def _scanl1():
+        it = iter(xs)
+        try:
+            acc = next(it)
+            yield acc
+            for x in it:
+                acc = f(acc, x)
+                yield acc
+        except StopIteration:
+            return
+
+    return Seq(_scanl1)
+
+
+def _test_scanl1():
+    assert scanl1(lambda acc, x: acc + x, []) == []
+    assert scanl1(lambda acc, x: acc + x, [1]) == [1]
+    assert scanl1(lambda acc, x: acc + x, [1, 2]) == [1, 3]
+
+
+# todo scanr, scanr1
+
+# def scanr(f: Callable[[_A, _B], _B], acc: _B, xs: Iterable[_A]) -> Iterable[_B]:
+#     def _scanr():
+#         acc_mut = deepcopy(acc)
+#         accs = []
+#         for x in reversed(list(xs)):
+#             acc_mut = f(x, acc_mut)
+#             accs.append(acc_mut)
+#         return reversed(accs)
+
+#     return Seq(_scanr)
+
+
+# def _test_scanr():
+#     assert scanr(lambda x, acc: x + acc, 0, []) == [0]
+#     assert scanr(lambda x, acc: x + acc, 0, [1]) == [1, 0]
+#     assert scanr(lambda x, acc: x + acc, 0, [1, 2]) == [3, 2, 0]
+
 
 # Infinite lists
 
@@ -415,14 +467,6 @@ def _test_take():
 
 
 def drop(n: int, xs: Iterable[_A]) -> Iterable[_A]:
-    # def _drop():
-    #     it = iter(xs)
-    #     for _ in range(n):
-    #         next(it)
-    #     return it
-
-    # return Seq(_drop)
-
     return Seq(lambda: itertools.islice(xs, n, None))
 
 
@@ -654,22 +698,6 @@ get_str = Io(input)
 
 
 # Additional functions
-
-
-# def uncons(xs: Iterable[_A]) -> Maybe[Tuple[_A, Iterable[_A]]]:
-#     try:
-#         head, *tail = xs
-#         return Just((head, tail))
-#     except ValueError:
-#         return Nothing()
-
-
-# def uncons(xs: Iterable[_A]) -> Maybe[Tuple[_A, Iterable[_A]]]:
-#     iterator = iter(xs)
-#     try:
-#         return Just((next(iterator), Seq(lambda: copy.deepcopy(iterator))))
-#     except StopIteration:
-#         return Nothing()
 
 
 def uncons(xs: Iterable[_A]) -> Maybe[Tuple[_A, Iterable[_A]]]:

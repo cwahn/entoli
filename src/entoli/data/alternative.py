@@ -1,8 +1,8 @@
 from __future__ import annotations
+
 from typing import Protocol, Self, TypeVar
 
 from entoli.data.applicative import Applicative
-
 
 _A = TypeVar("_A")
 _B = TypeVar("_B")

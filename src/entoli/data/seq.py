@@ -51,7 +51,7 @@ class Seq(Generic[_A], Monad[_A], Sequence):
         return any(True for _ in self)
 
     def __repr__(self) -> str:
-        return f"Seq({list(self)})"
+        return f"Seq({list(self._generator())})"
 
     def __str__(self) -> str:
         return self.__repr__()
