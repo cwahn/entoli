@@ -1,6 +1,9 @@
 use std::rc::Rc;
 
-use crate::{base::RcMut, source_ref::SourceRef};
+use crate::{
+    base::RcMut,
+    source_ref::{self, SourceRef},
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CtorIdent(pub SourceRef);
@@ -147,6 +150,16 @@ impl Lexer {
         }
     }
 
+    pub fn err_msg(&self, error_message: &str) -> String {
+        let source_ref = SourceRef::new(self.source.clone(), self.pos, self.pos);
+        source_ref.error(error_message)
+    }
+
+    pub fn range_err_msg(&self, start_pos: u32, end_pos: u32, error_message: &str) -> String {
+        let source_ref = SourceRef::new(self.source.clone(), start_pos, end_pos);
+        source_ref.error(error_message)
+    }
+
     pub fn parse_s_exprs(&mut self) -> Result<Rc<[RcMut<SExpr>]>, String> {
         let mut s_exprs = Vec::new();
         self.skip_whitespace_and_comments();
@@ -157,7 +170,7 @@ impl Lexer {
                     s_exprs.push(s_expr);
                 }
                 Err(e) => {
-                    return Err(format!("While parsing s-expr: /n{}", e));
+                    return Err(format!("While parsing s-expr: \n{}", e));
                 }
             }
 
@@ -203,10 +216,10 @@ impl Lexer {
                     self.next(); // consume '\''
                     Ok(RcMut::new(SExpr::Quote))
                 }
-                _ => Err(format!(
+                _ => Err(self.err_msg(&format!(
                     "While parsing s-expr, expected '(' or whitespace after ' but found {}",
                     self.peek_nth(1).unwrap()
-                )),
+                ))),
             },
             Some('#') => match self.peek_nth(1) {
                 Some('(') => self.parse_hashed_list(),
@@ -231,13 +244,13 @@ impl Lexer {
 
                     Ok(RcMut::new(SExpr::Hash(n)))
                 }
-                Some(c) => Err(format!(
-                    "While parsing s-expr, expected '(' or digit after # but found {}",
-                    c
-                )),
-                None => Err(format!(
+                Some(c) => Err(self.err_msg(&format!(
+                    "While parsing s-expr, expected '(' or digit after # but found {c}"
+                ))),
+
+                None => Err(self.err_msg(&format!(
                     "While parsing s-expr, expected '(' or digit after # but found None"
-                )),
+                ))),
             },
             Some('@') => match self.peek_nth(1) {
                 Some('(') => self.parse_compiler_directive(),
@@ -251,14 +264,16 @@ impl Lexer {
                     self.next(); // consume '@'
                     Ok(RcMut::new(SExpr::As))
                 }
-                _ => Err(format!(
-                    "While parsing s-expr, expected '(', whitespace or None after @ but found {:?}",
-                    self.peek()
-                )),
+                _ => Err(self.err_msg(&format!(
+                    "While parsing s-expr, expected '(', whitespace or None after @ but found {}",
+                    self.peek_nth(1).unwrap()
+                ))),
             },
             Some('"') => self.parse_string(),
             Some(_) => self.parse_atom(),
-            None => Err(format!("While parsing s-expr, character but found None")),
+            None => {
+                Err(self.err_msg("While parsing s-expr, expected any character but found None"))
+            }
         }
     }
 
@@ -280,10 +295,10 @@ impl Lexer {
                 s_exprs.push(s_expr);
             }
             Err(e) => {
-                return Err(format!(
-                    "While parsing first element of s-expr list: /n{}",
+                return Err(self.err_msg(&format!(
+                    "While parsing first element of s-expr list: \n{}",
                     e
-                ));
+                )));
             }
         }
         self.skip_whitespace_and_comments();
@@ -317,8 +332,8 @@ impl Lexer {
                         return self.parse_objective_tail(s_exprs.pop().unwrap());
                     }
                     None => {
-                        return Err(format!(
-                            "While parsing second element of s-expr list, expected character after '.' but found None"
+                        return Err(self.err_msg(
+                            "While parsing second element of s-expr list, expected character after '.' but found None",
                         ));
                     }
                 }
@@ -342,7 +357,7 @@ impl Lexer {
                     }
                     Err(e) => {
                         return Err(format!(
-                            "While parsing second element of s-expr list: /n{}",
+                            "While parsing second element of s-expr list: \n{}",
                             e
                         ));
                     }
@@ -350,8 +365,8 @@ impl Lexer {
                 self.skip_whitespace_and_comments();
             }
             None => {
-                return Err(format!(
-                    "While parsing second element of s-expr list, expected any character but found None"
+                return Err(self.err_msg(
+                    "While parsing second element of s-expr list, expected any character but found None",
                 ));
             }
         }
@@ -369,7 +384,7 @@ impl Lexer {
                     s_exprs.push(s_expr);
                 }
                 Err(e) => {
-                    return Err(format!("While parsing element of s-expr list: /n{}", e));
+                    return Err(format!("While parsing element of s-expr list: \n{}", e));
                 }
             }
             self.skip_whitespace_and_comments();
@@ -399,7 +414,7 @@ impl Lexer {
                 }
                 Err(e) => {
                     return Err(format!(
-                        "While parsing element of s-expr quoted list: /n{}",
+                        "While parsing element of s-expr quoted list: \n{}",
                         e
                     ));
                 }
@@ -430,7 +445,7 @@ impl Lexer {
                 }
                 Err(e) => {
                     return Err(format!(
-                        "While parsing element of s-expr hashed list: /n{}",
+                        "While parsing element of s-expr hashed list: \n{}",
                         e
                     ));
                 }
@@ -443,10 +458,10 @@ impl Lexer {
             *s_exprs[0].get_mut() = SExpr::Hash(n);
             Ok(RcMut::new(SExpr::List(s_exprs.into())))
         } else {
-            Err(format!(
+            Err(self.err_msg(&format!(
                 "While parsing s-expr hashed list, expected 2 <= n < 13 but found {}",
                 n
-            ))
+            )))
         }
     }
 
@@ -464,9 +479,9 @@ impl Lexer {
                             self.next(); // consume the escaped character
                         }
                         None => {
-                            return Err(format!(
-                                "While parsing string, expected character after \\ but found None"
-                            ))
+                            return Err(self.err_msg(
+                                "While parsing string, expected character after \\ but found None",
+                            ));
                         }
                     }
                 }
@@ -484,9 +499,10 @@ impl Lexer {
             }
         }
 
-        Err(format!(
-            "While parsing s-expr string, expected next character but found None after {}",
-            self.source.get(start as usize..self.pos as usize).unwrap()
+        Err(self.range_err_msg(
+            start,
+            self.pos,
+            "While parsing s-expr string, expected next character but found None",
         ))
     }
 
@@ -507,7 +523,7 @@ impl Lexer {
                             }
                             Err(e) => {
                                 return Err(format!(
-                                    "While parsing ident path after {:?}: /n{}",
+                                    "While parsing ident path after {:?}: \n{}",
                                     acc, e
                                 ));
                             }
@@ -542,9 +558,9 @@ impl Lexer {
 
             let res = match s {
                 "" => {
-                    return Err(format!(
-                        "While parsing s-expr, expected any character but found None"
-                    ))
+                    return Err(
+                        self.err_msg("While parsing s-expr, expected any character but found None")
+                    );
                 }
                 "=" => Ok(RcMut::new(SExpr::Binding)),
                 ":" => Ok(RcMut::new(SExpr::TypeAnnot)),
@@ -648,10 +664,10 @@ impl Lexer {
                 self.next(); // consume ')'
                 break;
             } else if c != '.' {
-                return Err(format!(
+                return Err(self.err_msg(&format!(
                     "While parsing s-expr objective tail, expected '.' after {:?} but found {}",
                     head, c
-                ));
+                )));
             }
 
             self.next(); // consume '.'
@@ -664,7 +680,10 @@ impl Lexer {
 
                     if let Some(')') = self.peek() {
                         return Err(
-                            format!("While parsing s-expr objective application, expected function after {:?} but found None", head)
+                            self.err_msg(&format!(
+                                "While parsing s-expr objective application, expected function after {:?} but found None",  
+                                head
+                            ))
                         );
                     }
 
@@ -676,10 +695,7 @@ impl Lexer {
                             temp_s_exprs.push(head.clone());
                         }
                         Err(e) => {
-                            return Err(format!(
-                                "While parsing objective application after {:?}: /n{}",
-                                head, e
-                            ));
+                            return Err(format!("While parsing objective application: \n{}", e));
                         }
                     }
 
@@ -698,7 +714,7 @@ impl Lexer {
                             }
                             Err(e) => {
                                 return Err(format!(
-                                    "While parsing element of s-expr objective application: /n{}",
+                                    "While parsing element of s-expr objective application: \n{}",
                                     e
                                 ));
                             }
@@ -720,16 +736,16 @@ impl Lexer {
                                 head = RcMut::new(SExpr::List(temp_s_exprs.into()));
                             }
                             _ => {
-                                return Err(format!(
-                                        "While parsing objective application after {:?}, expected VarIdent of field accessor but found {:?}",
-                                        head, field_s_expr
-                                    ));
+                                return Err(self.err_msg(&format!(
+                                    "While parsing objective application after {:?}, expected VarIdent of field accessor but found {:?}",
+                                    head, field_s_expr
+                                )));
                             }
                         },
                         Err(e) => {
                             return Err(format!(
-                                "While parsing objective application after {:?}, expected s-expr but failed with: \n{:?}",
-                                head, e
+                                "While parsing objective application, expected s-expr but failed with: \n{:?}",
+                                e
                             ));
                         }
                     }
@@ -750,10 +766,10 @@ impl Lexer {
 
         for c in s.chars() {
             if !c.is_alphanumeric() {
-                return Err(format!(
+                return Err(self.err_msg(&format!(
                     "While parsing ctor ident, expected alphanumeric but found {}",
                     c
-                ));
+                )));
             }
         }
 
@@ -785,10 +801,10 @@ impl Lexer {
 
         for c in s.chars() {
             if !c.is_alphanumeric() && c != '_' {
-                return Err(format!(
+                return Err(self.err_msg(&format!(
                     "While parsing var ident, expected alphanumeric or '_' but found {}",
                     c
-                ));
+                )));
             }
         }
 
@@ -806,10 +822,10 @@ impl Lexer {
 
         for c in s.chars() {
             if !c.is_ascii_punctuation() {
-                return Err(format!(
+                return Err(self.err_msg(&format!(
                     "While parsing op ident, expected ascii punctuation but found {}",
                     c
-                ));
+                )));
             }
         }
 
@@ -1187,6 +1203,20 @@ mod tests {
             *s_exprs[0].get(),
             SExpr::QuoteList(vec![RcMut::new(SExpr::I64(0)), RcMut::new(SExpr::I64(1))].into())
         );
+
+        // ! temp failing test
+        // {
+        //     let source = Rc::new("'a".to_string());
+        //     let mut lexer = Lexer::new(source.clone());
+
+        //     match lexer.parse_s_exprs() {
+        //         Ok(s_exprs) => (),
+        //         Err(e) => {
+        //             eprintln!("{}", e);
+        //             panic!();
+        //         }
+        //     }
+        // }
     }
 
     #[test]

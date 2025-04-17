@@ -46,7 +46,7 @@ impl SourceRef {
             result.push_str(&format!("{:>3} | {}\n", line_number, line_content));
 
             // Create the underline pointer
-            let mut underline = String::from(" ".repeat(start_col as usize + 4 + 1)); // 4 for line number, 1 for '|'
+            let mut underline = String::from(" ".repeat(start_col as usize + 3 + 1)); // 3 for line number, 1 for '|'
             let pointer_length = (end_pos - start_pos) as usize;
             underline.push_str(&"^".repeat(pointer_length.max(1))); // Ensure at least one caret
 
