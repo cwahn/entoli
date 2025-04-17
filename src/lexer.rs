@@ -758,7 +758,33 @@ impl Lexer {
     }
 
     pub fn parse_compiler_directive(&mut self) -> Result<RcMut<SExpr>, String> {
-        todo!();
+        self.next(); // consume '@'
+        self.next(); // consume '('
+        self.skip_whitespace_and_comments();
+
+        let mut s_exprs = Vec::new();
+
+        while let Some(c) = self.peek() {
+            if c == ')' {
+                self.next(); // consume ')'
+                break;
+            }
+
+            match self.parse_s_expr() {
+                Ok(s_expr) => {
+                    s_exprs.push(s_expr);
+                }
+                Err(e) => {
+                    return Err(format!(
+                        "While parsing element of s-expr compiler directive: \n{}",
+                        e
+                    ));
+                }
+            }
+            self.skip_whitespace_and_comments();
+        }
+
+        Ok(RcMut::new(SExpr::List(s_exprs.into())))
     }
 
     pub fn parse_ctor_ident(&mut self, end_pos: u32) -> Result<RcMut<SExpr>, String> {
@@ -1255,6 +1281,33 @@ mod tests {
 
         let mut lexer = Lexer::new(source.clone());
         lexer.parse_s_exprs().unwrap();
+    }
+
+    #[test]
+    fn test_parse_compiler_directive() {
+        let source = Rc::new("@(foo bar)".to_string());
+
+        let mut lexer = Lexer::new(source.clone());
+        let s_exprs = lexer.parse_s_exprs().unwrap();
+
+        assert_eq!(
+            *s_exprs[0].get(),
+            SExpr::List(
+                vec![
+                    RcMut::new(SExpr::VarIdent(VarIdent(SourceRef::new(
+                        source.clone(),
+                        2,
+                        5
+                    )))), // foo
+                    RcMut::new(SExpr::VarIdent(VarIdent(SourceRef::new(
+                        source.clone(),
+                        6,
+                        9
+                    )))) // bar
+                ]
+                .into()
+            )
+        );
     }
 
     #[test]
