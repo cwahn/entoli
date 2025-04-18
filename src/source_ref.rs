@@ -65,13 +65,13 @@ impl SourceRef {
 
                 // Add carets for the first and last lines
                 if line_num == start_line {
-                    let mut underline = String::from(" ".repeat(start_col as usize + 4 + 1));
+                    let mut underline = String::from(" ".repeat(start_col as usize + 3 + 1));
                     let remaining_chars = line_content.len() - start_col as usize;
                     underline.push_str(&"^".repeat(remaining_chars));
                     result.push_str(&format!(" {}  {}\n", "|", underline));
                 } else if line_num == end_line {
                     let underline =
-                        String::from(" ".repeat(4 + 1)) + &"^".repeat(end_col as usize + 1);
+                        String::from(" ".repeat(3 + 1)) + &"^".repeat(end_col as usize + 1);
                     result.push_str(&format!(" {}  {}\n", "|", underline));
                 }
             }

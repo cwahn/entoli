@@ -329,7 +329,7 @@ impl Lexer {
                         s_exprs.push(RcMut::new(SExpr::Dot));
                     }
                     Some(_) => {
-                        return self.parse_objective_tail(s_exprs.pop().unwrap());
+                        return self.parse_objective_tail(s_exprs.pop().unwrap()); // Known to be non-empty
                     }
                     None => {
                         return Err(self.err_msg(
