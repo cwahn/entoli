@@ -110,7 +110,7 @@ pub struct Lexer {
 /* -------------------------------------------------------------------------- */
 
 impl SExpr {
-    pub fn is_operator(&self) -> bool {
+    fn is_operator(&self) -> bool {
         match self {
             SExpr::Binding
             | SExpr::TypeAnnot
@@ -143,24 +143,24 @@ impl SExpr {
 }
 
 impl Lexer {
-    pub fn new(source: Rc<String>) -> Self {
+    fn new(source: Rc<String>) -> Self {
         Lexer {
             source: source.clone(),
             pos: 0,
         }
     }
 
-    pub fn err_msg(&self, error_message: &str) -> String {
+    fn err_msg(&self, error_message: &str) -> String {
         let source_ref = SourceRef::new(self.source.clone(), self.pos, self.pos);
         source_ref.error(error_message)
     }
 
-    pub fn range_err_msg(&self, start_pos: u32, end_pos: u32, error_message: &str) -> String {
+    fn range_err_msg(&self, start_pos: u32, end_pos: u32, error_message: &str) -> String {
         let source_ref = SourceRef::new(self.source.clone(), start_pos, end_pos);
         source_ref.error(error_message)
     }
 
-    pub fn parse_s_exprs(&mut self) -> Result<Rc<[RcMut<SExpr>]>, String> {
+    fn parse_s_exprs(&mut self) -> Result<Rc<[RcMut<SExpr>]>, String> {
         let mut s_exprs = Vec::new();
         self.skip_whitespace_and_comments();
 
@@ -170,7 +170,7 @@ impl Lexer {
                     s_exprs.push(s_expr);
                 }
                 Err(e) => {
-                    return Err(format!("While parsing s-expr: \n{}", e));
+                    return Err(format!("While parsing s-expsr: \n{}", e));
                 }
             }
 
@@ -179,7 +179,7 @@ impl Lexer {
         Ok(s_exprs.into())
     }
 
-    pub fn parse_s_expr(&mut self) -> Result<RcMut<SExpr>, String> {
+    fn parse_s_expr(&mut self) -> Result<RcMut<SExpr>, String> {
         if self.is_path_delimiter() {
             let mut path_elems = Vec::new();
             path_elems.push(RcMut::new(SExpr::IdentpathNil));
@@ -200,7 +200,7 @@ impl Lexer {
     }
 
     /// Parse a s-expr which is not IdentPath element
-    pub fn parse_s_expr_impl(&mut self) -> Result<RcMut<SExpr>, String> {
+    fn parse_s_expr_impl(&mut self) -> Result<RcMut<SExpr>, String> {
         // Input should not be empty or comment
         match self.peek() {
             Some('(') => self.parse_list_or_unit(),
@@ -277,7 +277,7 @@ impl Lexer {
         }
     }
 
-    pub fn parse_list_or_unit(&mut self) -> Result<RcMut<SExpr>, String> {
+    fn parse_list_or_unit(&mut self) -> Result<RcMut<SExpr>, String> {
         self.next(); // consume '('
         self.skip_whitespace_and_comments();
 
@@ -329,7 +329,8 @@ impl Lexer {
                         s_exprs.push(RcMut::new(SExpr::Dot));
                     }
                     Some(_) => {
-                        return self.parse_objective_tail(s_exprs.pop().unwrap()); // Known to be non-empty
+                        return self.parse_objective_tail(s_exprs.pop().unwrap());
+                        // Known to be non-empty
                     }
                     None => {
                         return Err(self.err_msg(
@@ -393,7 +394,7 @@ impl Lexer {
         Ok(RcMut::new(SExpr::List(s_exprs.into())))
     }
 
-    pub fn parse_quoted_list(&mut self) -> Result<RcMut<SExpr>, String> {
+    fn parse_quoted_list(&mut self) -> Result<RcMut<SExpr>, String> {
         self.next(); // consume '\''
         self.next(); // consume '('
         self.skip_whitespace_and_comments();
@@ -425,7 +426,7 @@ impl Lexer {
         Ok(RcMut::new(SExpr::QuoteList(s_exprs.into())))
     }
 
-    pub fn parse_hashed_list(&mut self) -> Result<RcMut<SExpr>, String> {
+    fn parse_hashed_list(&mut self) -> Result<RcMut<SExpr>, String> {
         self.next(); // consume '#'
         self.next(); // consume '('
         self.skip_whitespace_and_comments();
@@ -465,7 +466,7 @@ impl Lexer {
         }
     }
 
-    pub fn parse_string(&mut self) -> Result<RcMut<SExpr>, String> {
+    fn parse_string(&mut self) -> Result<RcMut<SExpr>, String> {
         self.next(); // consume '"'
         let start = self.pos;
 
@@ -658,7 +659,7 @@ impl Lexer {
         }
     }
 
-    pub fn parse_objective_tail(&mut self, mut head: RcMut<SExpr>) -> Result<RcMut<SExpr>, String> {
+    fn parse_objective_tail(&mut self, mut head: RcMut<SExpr>) -> Result<RcMut<SExpr>, String> {
         while let Some(c) = self.peek() {
             if c == ')' {
                 self.next(); // consume ')'
@@ -757,7 +758,7 @@ impl Lexer {
         Ok(head)
     }
 
-    pub fn parse_compiler_directive(&mut self) -> Result<RcMut<SExpr>, String> {
+    fn parse_compiler_directive(&mut self) -> Result<RcMut<SExpr>, String> {
         self.next(); // consume '@'
         self.next(); // consume '('
         self.skip_whitespace_and_comments();
@@ -787,7 +788,7 @@ impl Lexer {
         Ok(RcMut::new(SExpr::List(s_exprs.into())))
     }
 
-    pub fn parse_ctor_ident(&mut self, end_pos: u32) -> Result<RcMut<SExpr>, String> {
+    fn parse_ctor_ident(&mut self, end_pos: u32) -> Result<RcMut<SExpr>, String> {
         let s = &self.source[self.pos as usize..end_pos as usize];
 
         for c in s.chars() {
@@ -808,13 +809,13 @@ impl Lexer {
         Ok(RcMut::new(SExpr::CtorIdent(CtorIdent(source_ref))))
     }
 
-    pub fn parse_var_ident(&mut self, end_pos: u32) -> Result<RcMut<SExpr>, String> {
+    fn parse_var_ident(&mut self, end_pos: u32) -> Result<RcMut<SExpr>, String> {
         let source_ref = self.parse_var_ident_impl(end_pos)?;
 
         Ok(RcMut::new(SExpr::VarIdent(VarIdent(source_ref))))
     }
 
-    pub fn parse_field_accessor(&mut self, end_pos: u32) -> Result<RcMut<SExpr>, String> {
+    fn parse_field_accessor(&mut self, end_pos: u32) -> Result<RcMut<SExpr>, String> {
         self.next(); // consume '.'
 
         let source_ref = self.parse_var_ident_impl(end_pos)?;
@@ -843,7 +844,7 @@ impl Lexer {
         Ok(source_ref)
     }
 
-    pub fn parse_op_ident(&mut self, end_pos: u32) -> Result<RcMut<SExpr>, String> {
+    fn parse_op_ident(&mut self, end_pos: u32) -> Result<RcMut<SExpr>, String> {
         let s = &self.source[self.pos as usize..end_pos as usize];
 
         for c in s.chars() {
@@ -864,13 +865,13 @@ impl Lexer {
         Ok(RcMut::new(SExpr::OpIdent(OpIdent(source_ref))))
     }
 
-    pub fn peek(&self) -> Option<char> {
+    fn peek(&self) -> Option<char> {
         self.source[self.pos as usize..].chars().next()
     }
 
     /// Peek n after the next character
     /// Peek 0 is the same with peek()
-    pub fn peek_nth(&self, n: u32) -> Option<char> {
+    fn peek_nth(&self, n: u32) -> Option<char> {
         let nth_pos = self.pos + n;
 
         self.source
@@ -878,14 +879,14 @@ impl Lexer {
             .and_then(|s| s.chars().next())
     }
 
-    pub fn peek_head(&self, n: u32) -> Option<&str> {
+    fn peek_head(&self, n: u32) -> Option<&str> {
         let start = self.pos as usize;
         let end = (self.pos + n) as usize;
 
         self.source.get(start..end)
     }
 
-    pub fn next(&mut self) -> Option<char> {
+    fn next(&mut self) -> Option<char> {
         let c = self.peek();
         if c.is_some() {
             self.pos += 1;
@@ -893,7 +894,7 @@ impl Lexer {
         c
     }
 
-    pub fn skip_whitespace(&mut self) {
+    fn skip_whitespace(&mut self) {
         while let Some(c) = self.peek() {
             if c.is_whitespace() {
                 self.next();
@@ -903,7 +904,7 @@ impl Lexer {
         }
     }
 
-    pub fn skip_whitespace_and_comments(&mut self) {
+    fn skip_whitespace_and_comments(&mut self) {
         while let Some(c) = self.peek() {
             if c.is_whitespace() {
                 self.next();
@@ -920,7 +921,7 @@ impl Lexer {
         }
     }
 
-    pub fn is_path_delimiter(&self) -> bool {
+    fn is_path_delimiter(&self) -> bool {
         if let Some(c) = self.peek() {
             c == ':' && self.peek_nth(1) == Some(':')
         } else {
@@ -928,13 +929,18 @@ impl Lexer {
         }
     }
 
-    pub fn is_path_delimiter_nth(&self, n: u32) -> bool {
+    fn is_path_delimiter_nth(&self, n: u32) -> bool {
         if let Some(c) = self.peek_nth(n) {
             c == ':' && self.peek_nth(n + 1) == Some(':')
         } else {
             false
         }
     }
+}
+
+pub fn lex(src: Rc<String>) -> Result<Rc<[RcMut<SExpr>]>, String> {
+    let mut lexer = Lexer::new(src);
+    lexer.parse_s_exprs()
 }
 
 #[cfg(test)]
