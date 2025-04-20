@@ -18,7 +18,7 @@
   (xs @ ())     (string-append "Empty list: " (show xs))
 )
 
-;; Option 2: More natural vocalization
+;; Option 2: More natural vocalization (as)
 (match x
   ((Just n) @ x) (string-append "Got value: " (show x) " with number: " (show n))
   (Nothing @ x)  (string-append "Got value: " (show x))

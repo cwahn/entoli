@@ -297,7 +297,7 @@ False       ; Boolean literal
 )
 
 ;; Compiler directive expressions
-@(cfg debug)
+@(cfg debug) 
 (data (' a)
   Nil
   (' a (' a))
@@ -305,7 +305,7 @@ False       ; Boolean literal
 
 @(derive PartialEq (Convertible '(a) (Vec a)))
 @(derive PartialOrd '(a))
-@(derive Ord '(a))
+@(derive Ord '(a)) 
 
 
 (data (Tree a)
@@ -656,7 +656,7 @@ False       ; Boolean literal
   )
 
   ;; Directly import module from path
-  @(mod some_submodule (Path `("path" "to" "some_submodule")))
+  (mod some_submodule (Path `("path" "to" "some_submodule")))
   (use some_submodule)
   
   ;; Public function (declared in the export list)

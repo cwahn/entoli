@@ -16,8 +16,9 @@ pub struct OpIdent(pub SourceRef);
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum SExpr {
-    List(Rc<[RcMut<SExpr>]>),      // List of SExpr e.g. "(a b c)"
-    QuoteList(Rc<[RcMut<SExpr>]>), // Quote List of SExpr e.g. "'(a b c)"
+    List(Rc<[SExpr]>),      // List of SExpr e.g. "(a b c)"
+    QuoteList(Rc<[SExpr]>), // Quote List of SExpr e.g. "'(a b c)"
+    Directive(Rc<[SExpr]>), // Directive List of SExpr e.g. "@(a b c)"
 
     // keywords
     Binding,   // e.g. "=", operator
@@ -91,10 +92,10 @@ pub enum SExpr {
     OpIdent(OpIdent),        // e.g. ">>=", "++",
     FieldAccessor(VarIdent), // e.g. ".some_field", ".another_field" (VarIdent Does not include dot)
 
-    IdentPath(Rc<[RcMut<SExpr>]>), // e.g. "some_module::SomeType::>>=", "some_module::.."
+    IdentPath(Rc<[SExpr]>), // e.g. "some_module::SomeType::>>=", "some_module::.."
     // What could form IdentPath?
     // mod_name::mod_name...::(ctor_name, trait_name, data_name, and List for trait disambiguation)
-    // IdentTree(Rc<[RcMut<SExpr>]>), // e.g. "some_module::another_module::(SomeType Another Value)",
+    // IdentTree(Rc<[SExpr]>), // e.g. "some_module::another_module::(SomeType Another Value)",
     //                                // First element should be IdentPath, and the rest should be IdentTree
     // IdentTree is nothing but a list whose head is IdentPath and rest is Ident-like or ..
     IdentpathNil, // Used for leading and trailing "::"
@@ -134,7 +135,7 @@ impl SExpr {
             | SExpr::Dot
             | SExpr::OpIdent(_) => true,
             SExpr::IdentPath(s_exprs) => match s_exprs.last() {
-                Some(s_expr) => s_expr.get().is_operator(),
+                Some(s_expr) => s_expr.is_operator(),
                 None => false,
             },
             _ => false,
@@ -160,7 +161,7 @@ impl Lexer {
         source_ref.error(error_message)
     }
 
-    fn parse_s_exprs(&mut self) -> Result<Rc<[RcMut<SExpr>]>, String> {
+    fn parse_s_exprs(&mut self) -> Result<Rc<[SExpr]>, String> {
         let mut s_exprs = Vec::new();
         self.skip_whitespace_and_comments();
 
@@ -179,10 +180,10 @@ impl Lexer {
         Ok(s_exprs.into())
     }
 
-    fn parse_s_expr(&mut self) -> Result<RcMut<SExpr>, String> {
+    fn parse_s_expr(&mut self) -> Result<SExpr, String> {
         if self.is_path_delimiter() {
             let mut path_elems = Vec::new();
-            path_elems.push(RcMut::new(SExpr::IdentpathNil));
+            path_elems.push(SExpr::IdentpathNil);
 
             return self.parse_ident_path(path_elems);
         }
@@ -200,7 +201,7 @@ impl Lexer {
     }
 
     /// Parse a s-expr which is not IdentPath element
-    fn parse_s_expr_impl(&mut self) -> Result<RcMut<SExpr>, String> {
+    fn parse_s_expr_impl(&mut self) -> Result<SExpr, String> {
         // Input should not be empty or comment
         match self.peek() {
             Some('(') => self.parse_list_or_unit(),
@@ -210,11 +211,11 @@ impl Lexer {
                     self.next(); // consume '\''
                     self.skip_whitespace_and_comments();
 
-                    Ok(RcMut::new(SExpr::Quote))
+                    Ok(SExpr::Quote)
                 }
                 None => {
                     self.next(); // consume '\''
-                    Ok(RcMut::new(SExpr::Quote))
+                    Ok(SExpr::Quote)
                 }
                 _ => Err(self.err_msg(&format!(
                     "While parsing s-expr, expected '(' or whitespace after ' but found {}",
@@ -242,7 +243,7 @@ impl Lexer {
                     let s = &self.source[start_pos as usize..end_pos as usize];
                     let n = s.parse::<u8>().unwrap();
 
-                    Ok(RcMut::new(SExpr::Hash(n)))
+                    Ok(SExpr::Hash(n))
                 }
                 Some(c) => Err(self.err_msg(&format!(
                     "While parsing s-expr, expected '(' or digit after # but found {c}"
@@ -258,11 +259,11 @@ impl Lexer {
                     self.next(); // consume '@'
                     self.skip_whitespace_and_comments();
 
-                    Ok(RcMut::new(SExpr::As))
+                    Ok(SExpr::As)
                 }
                 None => {
                     self.next(); // consume '@'
-                    Ok(RcMut::new(SExpr::As))
+                    Ok(SExpr::As)
                 }
                 _ => Err(self.err_msg(&format!(
                     "While parsing s-expr, expected '(', whitespace or None after @ but found {}",
@@ -277,13 +278,13 @@ impl Lexer {
         }
     }
 
-    fn parse_list_or_unit(&mut self) -> Result<RcMut<SExpr>, String> {
+    fn parse_list_or_unit(&mut self) -> Result<SExpr, String> {
         self.next(); // consume '('
         self.skip_whitespace_and_comments();
 
         if let Some(')') = self.peek() {
             self.next(); // consume ')'
-            return Ok(RcMut::new(SExpr::Unit)); // No empty list
+            return Ok(SExpr::Unit); // No empty list
         }
 
         let mut s_exprs = Vec::new();
@@ -310,7 +311,7 @@ impl Lexer {
                 self.next(); // consume ')'
                 self.skip_whitespace_and_comments();
 
-                return Ok(RcMut::new(SExpr::List(s_exprs.into())));
+                return Ok(SExpr::List(s_exprs.into()));
             }
             Some('.') => {
                 match self.peek() {
@@ -319,14 +320,14 @@ impl Lexer {
                         self.next(); // consume ')'
                         self.skip_whitespace_and_comments();
 
-                        s_exprs.push(RcMut::new(SExpr::Dot));
-                        return Ok(RcMut::new(SExpr::List(s_exprs.into())));
+                        s_exprs.push(SExpr::Dot);
+                        return Ok(SExpr::List(s_exprs.into()));
                     }
                     Some(c) if c.is_whitespace() => {
                         self.next(); // consume '.'
                         self.skip_whitespace_and_comments();
 
-                        s_exprs.push(RcMut::new(SExpr::Dot));
+                        s_exprs.push(SExpr::Dot);
                     }
                     Some(_) => {
                         return self.parse_objective_tail(s_exprs.pop().unwrap());
@@ -344,7 +345,7 @@ impl Lexer {
                     Ok(s_expr) => {
                         // Check if SPO applied.
                         // If the second element is operator, it need to be swapped
-                        let is_op = s_expr.get().is_operator();
+                        let is_op = s_expr.is_operator();
                         match is_op {
                             true => {
                                 let head = s_exprs.pop().unwrap();
@@ -391,10 +392,10 @@ impl Lexer {
             self.skip_whitespace_and_comments();
         }
 
-        Ok(RcMut::new(SExpr::List(s_exprs.into())))
+        Ok(SExpr::List(s_exprs.into()))
     }
 
-    fn parse_quoted_list(&mut self) -> Result<RcMut<SExpr>, String> {
+    fn parse_quoted_list(&mut self) -> Result<SExpr, String> {
         self.next(); // consume '\''
         self.next(); // consume '('
         self.skip_whitespace_and_comments();
@@ -423,16 +424,16 @@ impl Lexer {
             self.skip_whitespace_and_comments();
         }
 
-        Ok(RcMut::new(SExpr::QuoteList(s_exprs.into())))
+        Ok(SExpr::QuoteList(s_exprs.into()))
     }
 
-    fn parse_hashed_list(&mut self) -> Result<RcMut<SExpr>, String> {
+    fn parse_hashed_list(&mut self) -> Result<SExpr, String> {
         self.next(); // consume '#'
         self.next(); // consume '('
         self.skip_whitespace_and_comments();
 
         let mut s_exprs = Vec::new();
-        s_exprs.push(RcMut::new(SExpr::Hash(0))); // Placeholder for the hash
+        s_exprs.push(SExpr::Hash(0)); // Placeholder for the hash
 
         while let Some(c) = self.peek() {
             if c == ')' {
@@ -456,8 +457,8 @@ impl Lexer {
 
         let n = (s_exprs.len() - 1) as u8;
         if n >= 2 && n < 13 {
-            *s_exprs[0].get_mut() = SExpr::Hash(n);
-            Ok(RcMut::new(SExpr::List(s_exprs.into())))
+            s_exprs[0] = SExpr::Hash(n);
+            Ok(SExpr::List(s_exprs.into()))
         } else {
             Err(self.err_msg(&format!(
                 "While parsing s-expr hashed list, expected 2 <= n < 13 but found {}",
@@ -466,7 +467,7 @@ impl Lexer {
         }
     }
 
-    fn parse_string(&mut self) -> Result<RcMut<SExpr>, String> {
+    fn parse_string(&mut self) -> Result<SExpr, String> {
         self.next(); // consume '"'
         let start = self.pos;
 
@@ -492,7 +493,7 @@ impl Lexer {
 
                     self.next(); // consume '"'
 
-                    return Ok(RcMut::new(SExpr::String(source_ref)));
+                    return Ok(SExpr::String(source_ref));
                 }
                 _ => {
                     self.next(); // consume the character
@@ -507,7 +508,7 @@ impl Lexer {
         ))
     }
 
-    fn parse_ident_path(&mut self, mut acc: Vec<RcMut<SExpr>>) -> Result<RcMut<SExpr>, String> {
+    fn parse_ident_path(&mut self, mut acc: Vec<SExpr>) -> Result<SExpr, String> {
         while self.is_path_delimiter() {
             self.next(); // consume ':'
             self.next(); // consume ':'
@@ -516,7 +517,7 @@ impl Lexer {
                 Some(c) => {
                     if c.is_whitespace() || c == ')' || c == ';' {
                         self.next(); // consume whitespace or ')'
-                        acc.push(RcMut::new(SExpr::IdentpathNil));
+                        acc.push(SExpr::IdentpathNil);
                     } else {
                         match self.parse_s_expr_impl() {
                             Ok(s_expr) => {
@@ -532,15 +533,15 @@ impl Lexer {
                     }
                 }
                 None => {
-                    acc.push(RcMut::new(SExpr::IdentpathNil));
+                    acc.push(SExpr::IdentpathNil);
                 }
             }
         }
 
-        Ok(RcMut::new(SExpr::IdentPath(acc.into())))
+        Ok(SExpr::IdentPath(acc.into()))
     }
 
-    fn parse_atom(&mut self) -> Result<RcMut<SExpr>, String> {
+    fn parse_atom(&mut self) -> Result<SExpr, String> {
         let start_pos = self.pos;
         let mut i = 0;
 
@@ -563,68 +564,68 @@ impl Lexer {
                         self.err_msg("While parsing s-expr, expected any character but found None")
                     );
                 }
-                "=" => Ok(RcMut::new(SExpr::Binding)),
-                ":" => Ok(RcMut::new(SExpr::TypeAnnot)),
-                ":=" => Ok(RcMut::new(SExpr::DoBinding)),
+                "=" => Ok(SExpr::Binding),
+                ":" => Ok(SExpr::TypeAnnot),
+                ":=" => Ok(SExpr::DoBinding),
 
-                "lambda" => Ok(RcMut::new(SExpr::Lambda)),
-                "data" => Ok(RcMut::new(SExpr::Data)),
-                "trait" => Ok(RcMut::new(SExpr::Trait)),
-                "impl" => Ok(RcMut::new(SExpr::Impl)),
-                "type" => Ok(RcMut::new(SExpr::TypeAlias)),
-                "kind" => Ok(RcMut::new(SExpr::KindAnnot)),
+                "lambda" => Ok(SExpr::Lambda),
+                "data" => Ok(SExpr::Data),
+                "trait" => Ok(SExpr::Trait),
+                "impl" => Ok(SExpr::Impl),
+                "type" => Ok(SExpr::TypeAlias),
+                "kind" => Ok(SExpr::KindAnnot),
 
-                "mod" => Ok(RcMut::new(SExpr::Mod)),
-                "use" => Ok(RcMut::new(SExpr::Use)),
-                "macro" => Ok(RcMut::new(SExpr::Macro)),
-                "do" => Ok(RcMut::new(SExpr::Do)),
+                "mod" => Ok(SExpr::Mod),
+                "use" => Ok(SExpr::Use),
+                "macro" => Ok(SExpr::Macro),
+                "do" => Ok(SExpr::Do),
 
-                "match" => Ok(RcMut::new(SExpr::Match)),
-                "where" => Ok(RcMut::new(SExpr::Where)),
-                "_" => Ok(RcMut::new(SExpr::Wildcard)),
-                ".." => Ok(RcMut::new(SExpr::Ellipsis)),
+                "match" => Ok(SExpr::Match),
+                "where" => Ok(SExpr::Where),
+                "_" => Ok(SExpr::Wildcard),
+                ".." => Ok(SExpr::Ellipsis),
 
-                "@" => Ok(RcMut::new(SExpr::As)),
+                "@" => Ok(SExpr::As),
 
-                "->" => Ok(RcMut::new(SExpr::Arrow)),
-                "'" => Ok(RcMut::new(SExpr::Quote)),
-                "Nil" => Ok(RcMut::new(SExpr::Nil)),
+                "->" => Ok(SExpr::Arrow),
+                "'" => Ok(SExpr::Quote),
+                "Nil" => Ok(SExpr::Nil),
                 // Hash should be already handled
-                "*" => Ok(RcMut::new(SExpr::Asterisk)),
+                "*" => Ok(SExpr::Asterisk),
 
-                "==" => Ok(RcMut::new(SExpr::Eq)),
-                "!=" => Ok(RcMut::new(SExpr::Ne)),
-                ">" => Ok(RcMut::new(SExpr::Gt)),
-                ">=" => Ok(RcMut::new(SExpr::Ge)),
-                "<" => Ok(RcMut::new(SExpr::Lt)),
-                "<=" => Ok(RcMut::new(SExpr::Le)),
+                "==" => Ok(SExpr::Eq),
+                "!=" => Ok(SExpr::Ne),
+                ">" => Ok(SExpr::Gt),
+                ">=" => Ok(SExpr::Ge),
+                "<" => Ok(SExpr::Lt),
+                "<=" => Ok(SExpr::Le),
 
-                "&" => Ok(RcMut::new(SExpr::And)),
-                "|" => Ok(RcMut::new(SExpr::Or)),
-                "!" => Ok(RcMut::new(SExpr::Not)),
+                "&" => Ok(SExpr::And),
+                "|" => Ok(SExpr::Or),
+                "!" => Ok(SExpr::Not),
 
-                "+" => Ok(RcMut::new(SExpr::Add)),
-                "-" => Ok(RcMut::new(SExpr::Sub)),
+                "+" => Ok(SExpr::Add),
+                "-" => Ok(SExpr::Sub),
                 // Asterisk is used for multiplication
-                "/" => Ok(RcMut::new(SExpr::Div)),
-                "%" => Ok(RcMut::new(SExpr::Modulus)),
+                "/" => Ok(SExpr::Div),
+                "%" => Ok(SExpr::Modulus),
 
-                "." => Ok(RcMut::new(SExpr::Dot)),
+                "." => Ok(SExpr::Dot),
 
-                "()" => Ok(RcMut::new(SExpr::Unit)),
-                "i64" => Ok(RcMut::new(SExpr::I64Type)),
-                "f64" => Ok(RcMut::new(SExpr::F64Type)),
-                "bool" => Ok(RcMut::new(SExpr::BoolType)),
-                "str" => Ok(RcMut::new(SExpr::StrType)),
+                "()" => Ok(SExpr::Unit),
+                "i64" => Ok(SExpr::I64Type),
+                "f64" => Ok(SExpr::F64Type),
+                "bool" => Ok(SExpr::BoolType),
+                "str" => Ok(SExpr::StrType),
 
-                "true" => Ok(RcMut::new(SExpr::Bool(true))),
-                "false" => Ok(RcMut::new(SExpr::Bool(false))),
+                "true" => Ok(SExpr::Bool(true)),
+                "false" => Ok(SExpr::Bool(false)),
                 // String should be already handled
                 s => {
                     if let Ok(i) = s.parse::<i64>() {
-                        Ok(RcMut::new(SExpr::I64(i)))
+                        Ok(SExpr::I64(i))
                     } else if let Ok(f) = s.parse::<f64>() {
-                        Ok(RcMut::new(SExpr::F64(f)))
+                        Ok(SExpr::F64(f))
                     } else {
                         Err("".to_string())
                     }
@@ -659,7 +660,7 @@ impl Lexer {
         }
     }
 
-    fn parse_objective_tail(&mut self, mut head: RcMut<SExpr>) -> Result<RcMut<SExpr>, String> {
+    fn parse_objective_tail(&mut self, mut head: SExpr) -> Result<SExpr, String> {
         while let Some(c) = self.peek() {
             if c == ')' {
                 self.next(); // consume ')'
@@ -722,19 +723,19 @@ impl Lexer {
                         }
                     }
 
-                    head = RcMut::new(SExpr::List(temp_s_exprs.into()));
+                    head = SExpr::List(temp_s_exprs.into());
                 }
                 Some(_) => {
                     // Should be field accessor
                     match self.parse_s_expr() {
-                        Ok(field_s_expr) => match &*field_s_expr.get() {
+                        Ok(field_s_expr) => match &field_s_expr {
                             SExpr::VarIdent(var_id) => {
                                 let mut temp_s_exprs = Vec::new();
 
-                                temp_s_exprs.push(RcMut::new(SExpr::FieldAccessor(var_id.clone())));
+                                temp_s_exprs.push(SExpr::FieldAccessor(var_id.clone()));
                                 temp_s_exprs.push(head.clone());
 
-                                head = RcMut::new(SExpr::List(temp_s_exprs.into()));
+                                head = SExpr::List(temp_s_exprs.into());
                             }
                             _ => {
                                 return Err(self.err_msg(&format!(
@@ -758,7 +759,7 @@ impl Lexer {
         Ok(head)
     }
 
-    fn parse_compiler_directive(&mut self) -> Result<RcMut<SExpr>, String> {
+    fn parse_compiler_directive(&mut self) -> Result<SExpr, String> {
         self.next(); // consume '@'
         self.next(); // consume '('
         self.skip_whitespace_and_comments();
@@ -785,10 +786,10 @@ impl Lexer {
             self.skip_whitespace_and_comments();
         }
 
-        Ok(RcMut::new(SExpr::List(s_exprs.into())))
+        Ok(SExpr::Directive(s_exprs.into()))
     }
 
-    fn parse_ctor_ident(&mut self, end_pos: u32) -> Result<RcMut<SExpr>, String> {
+    fn parse_ctor_ident(&mut self, end_pos: u32) -> Result<SExpr, String> {
         let s = &self.source[self.pos as usize..end_pos as usize];
 
         for c in s.chars() {
@@ -806,21 +807,21 @@ impl Lexer {
         }
 
         let source_ref = SourceRef::new(self.source.clone(), start_pos, end_pos);
-        Ok(RcMut::new(SExpr::CtorIdent(CtorIdent(source_ref))))
+        Ok(SExpr::CtorIdent(CtorIdent(source_ref)))
     }
 
-    fn parse_var_ident(&mut self, end_pos: u32) -> Result<RcMut<SExpr>, String> {
+    fn parse_var_ident(&mut self, end_pos: u32) -> Result<SExpr, String> {
         let source_ref = self.parse_var_ident_impl(end_pos)?;
 
-        Ok(RcMut::new(SExpr::VarIdent(VarIdent(source_ref))))
+        Ok(SExpr::VarIdent(VarIdent(source_ref)))
     }
 
-    fn parse_field_accessor(&mut self, end_pos: u32) -> Result<RcMut<SExpr>, String> {
+    fn parse_field_accessor(&mut self, end_pos: u32) -> Result<SExpr, String> {
         self.next(); // consume '.'
 
         let source_ref = self.parse_var_ident_impl(end_pos)?;
 
-        Ok(RcMut::new(SExpr::FieldAccessor(VarIdent(source_ref))))
+        Ok(SExpr::FieldAccessor(VarIdent(source_ref)))
     }
 
     fn parse_var_ident_impl(&mut self, end_pos: u32) -> Result<SourceRef, String> {
@@ -844,7 +845,7 @@ impl Lexer {
         Ok(source_ref)
     }
 
-    fn parse_op_ident(&mut self, end_pos: u32) -> Result<RcMut<SExpr>, String> {
+    fn parse_op_ident(&mut self, end_pos: u32) -> Result<SExpr, String> {
         let s = &self.source[self.pos as usize..end_pos as usize];
 
         for c in s.chars() {
@@ -862,7 +863,7 @@ impl Lexer {
         }
 
         let source_ref = SourceRef::new(self.source.clone(), start_pos, end_pos);
-        Ok(RcMut::new(SExpr::OpIdent(OpIdent(source_ref))))
+        Ok(SExpr::OpIdent(OpIdent(source_ref)))
     }
 
     fn peek(&self) -> Option<char> {
@@ -938,7 +939,7 @@ impl Lexer {
     }
 }
 
-pub fn lex(src: Rc<String>) -> Result<Rc<[RcMut<SExpr>]>, String> {
+pub fn lex(src: Rc<String>) -> Result<Rc<[SExpr]>, String> {
     let mut lexer = Lexer::new(src);
     lexer.parse_s_exprs()
 }
@@ -955,19 +956,19 @@ mod tests {
         let mut lexer = Lexer::new(source.clone());
         let s_exprs = lexer.parse_s_exprs().unwrap();
 
-        assert_eq!(*s_exprs[0].get(), SExpr::Binding);
-        assert_eq!(*s_exprs[1].get(), SExpr::TypeAnnot);
-        assert_eq!(*s_exprs[2].get(), SExpr::DoBinding);
-        assert_eq!(*s_exprs[3].get(), SExpr::Lambda);
-        assert_eq!(*s_exprs[4].get(), SExpr::Data);
-        assert_eq!(*s_exprs[5].get(), SExpr::Trait);
-        assert_eq!(*s_exprs[6].get(), SExpr::Impl);
-        assert_eq!(*s_exprs[7].get(), SExpr::TypeAlias);
-        assert_eq!(*s_exprs[8].get(), SExpr::KindAnnot);
-        assert_eq!(*s_exprs[9].get(), SExpr::Mod);
-        assert_eq!(*s_exprs[10].get(), SExpr::Use);
-        assert_eq!(*s_exprs[11].get(), SExpr::Macro);
-        assert_eq!(*s_exprs[12].get(), SExpr::Do);
+        assert_eq!(s_exprs[0], SExpr::Binding);
+        assert_eq!(s_exprs[1], SExpr::TypeAnnot);
+        assert_eq!(s_exprs[2], SExpr::DoBinding);
+        assert_eq!(s_exprs[3], SExpr::Lambda);
+        assert_eq!(s_exprs[4], SExpr::Data);
+        assert_eq!(s_exprs[5], SExpr::Trait);
+        assert_eq!(s_exprs[6], SExpr::Impl);
+        assert_eq!(s_exprs[7], SExpr::TypeAlias);
+        assert_eq!(s_exprs[8], SExpr::KindAnnot);
+        assert_eq!(s_exprs[9], SExpr::Mod);
+        assert_eq!(s_exprs[10], SExpr::Use);
+        assert_eq!(s_exprs[11], SExpr::Macro);
+        assert_eq!(s_exprs[12], SExpr::Do);
     }
 
     #[test]
@@ -977,10 +978,10 @@ mod tests {
         let mut lexer = Lexer::new(source.clone());
         let s_exprs = lexer.parse_s_exprs().unwrap();
 
-        assert_eq!(*s_exprs[0].get(), SExpr::Match);
-        assert_eq!(*s_exprs[1].get(), SExpr::Where);
-        assert_eq!(*s_exprs[2].get(), SExpr::Wildcard);
-        assert_eq!(*s_exprs[3].get(), SExpr::Ellipsis);
+        assert_eq!(s_exprs[0], SExpr::Match);
+        assert_eq!(s_exprs[1], SExpr::Where);
+        assert_eq!(s_exprs[2], SExpr::Wildcard);
+        assert_eq!(s_exprs[3], SExpr::Ellipsis);
     }
 
     #[test]
@@ -990,7 +991,7 @@ mod tests {
         let mut lexer = Lexer::new(source.clone());
         let s_exprs = lexer.parse_s_exprs().unwrap();
 
-        assert_eq!(*s_exprs[0].get(), SExpr::As);
+        assert_eq!(s_exprs[0], SExpr::As);
     }
 
     #[test]
@@ -1002,32 +1003,32 @@ mod tests {
         let mut lexer = Lexer::new(source.clone());
         let s_exprs = lexer.parse_s_exprs().unwrap();
 
-        assert_eq!(*s_exprs[0].get(), SExpr::Arrow);
-        assert_eq!(*s_exprs[1].get(), SExpr::Quote);
-        assert_eq!(*s_exprs[2].get(), SExpr::Nil);
-        assert_eq!(*s_exprs[3].get(), SExpr::Hash(2));
-        assert_eq!(*s_exprs[4].get(), SExpr::Hash(3));
-        assert_eq!(*s_exprs[5].get(), SExpr::Hash(12));
-        assert_eq!(*s_exprs[6].get(), SExpr::Asterisk);
-        assert_eq!(*s_exprs[7].get(), SExpr::Eq);
-        assert_eq!(*s_exprs[8].get(), SExpr::Ne);
-        assert_eq!(*s_exprs[9].get(), SExpr::Gt);
-        assert_eq!(*s_exprs[10].get(), SExpr::Ge);
-        assert_eq!(*s_exprs[11].get(), SExpr::Lt);
-        assert_eq!(*s_exprs[12].get(), SExpr::Le);
-        assert_eq!(*s_exprs[13].get(), SExpr::And);
-        assert_eq!(*s_exprs[14].get(), SExpr::Or);
-        assert_eq!(*s_exprs[15].get(), SExpr::Not);
-        assert_eq!(*s_exprs[16].get(), SExpr::Add);
-        assert_eq!(*s_exprs[17].get(), SExpr::Sub);
-        assert_eq!(*s_exprs[18].get(), SExpr::Div);
-        assert_eq!(*s_exprs[19].get(), SExpr::Modulus);
-        assert_eq!(*s_exprs[20].get(), SExpr::Dot);
-        assert_eq!(*s_exprs[21].get(), SExpr::Unit);
-        assert_eq!(*s_exprs[22].get(), SExpr::BoolType);
-        assert_eq!(*s_exprs[23].get(), SExpr::I64Type);
-        assert_eq!(*s_exprs[24].get(), SExpr::F64Type);
-        assert_eq!(*s_exprs[25].get(), SExpr::StrType);
+        assert_eq!(s_exprs[0], SExpr::Arrow);
+        assert_eq!(s_exprs[1], SExpr::Quote);
+        assert_eq!(s_exprs[2], SExpr::Nil);
+        assert_eq!(s_exprs[3], SExpr::Hash(2));
+        assert_eq!(s_exprs[4], SExpr::Hash(3));
+        assert_eq!(s_exprs[5], SExpr::Hash(12));
+        assert_eq!(s_exprs[6], SExpr::Asterisk);
+        assert_eq!(s_exprs[7], SExpr::Eq);
+        assert_eq!(s_exprs[8], SExpr::Ne);
+        assert_eq!(s_exprs[9], SExpr::Gt);
+        assert_eq!(s_exprs[10], SExpr::Ge);
+        assert_eq!(s_exprs[11], SExpr::Lt);
+        assert_eq!(s_exprs[12], SExpr::Le);
+        assert_eq!(s_exprs[13], SExpr::And);
+        assert_eq!(s_exprs[14], SExpr::Or);
+        assert_eq!(s_exprs[15], SExpr::Not);
+        assert_eq!(s_exprs[16], SExpr::Add);
+        assert_eq!(s_exprs[17], SExpr::Sub);
+        assert_eq!(s_exprs[18], SExpr::Div);
+        assert_eq!(s_exprs[19], SExpr::Modulus);
+        assert_eq!(s_exprs[20], SExpr::Dot);
+        assert_eq!(s_exprs[21], SExpr::Unit);
+        assert_eq!(s_exprs[22], SExpr::BoolType);
+        assert_eq!(s_exprs[23], SExpr::I64Type);
+        assert_eq!(s_exprs[24], SExpr::F64Type);
+        assert_eq!(s_exprs[25], SExpr::StrType);
     }
 
     #[test]
@@ -1037,11 +1038,11 @@ mod tests {
         let mut lexer = Lexer::new(source.clone());
         let s_exprs = lexer.parse_s_exprs().unwrap();
 
-        assert_eq!(*s_exprs[0].get(), SExpr::Bool(true));
-        assert_eq!(*s_exprs[1].get(), SExpr::Bool(false));
-        assert_eq!(*s_exprs[2].get(), SExpr::I64(0));
-        assert_eq!(*s_exprs[3].get(), SExpr::I64(42));
-        assert_eq!(*s_exprs[4].get(), SExpr::F64(-9.8));
+        assert_eq!(s_exprs[0], SExpr::Bool(true));
+        assert_eq!(s_exprs[1], SExpr::Bool(false));
+        assert_eq!(s_exprs[2], SExpr::I64(0));
+        assert_eq!(s_exprs[3], SExpr::I64(42));
+        assert_eq!(s_exprs[4], SExpr::F64(-9.8));
     }
 
     #[test]
@@ -1052,7 +1053,7 @@ mod tests {
         let s_exprs = lexer.parse_s_exprs().unwrap();
 
         {
-            let s = &*s_exprs[0].get();
+            let s = &s_exprs[0];
             if let SExpr::String(source_ref) = s {
                 assert_eq!(source_ref.resolve(), "");
             } else {
@@ -1061,7 +1062,7 @@ mod tests {
         }
 
         {
-            let s = &*s_exprs[1].get();
+            let s = &s_exprs[1];
             if let SExpr::String(source_ref) = s {
                 assert_eq!(source_ref.resolve(), "Hello, world!");
             } else {
@@ -1070,7 +1071,7 @@ mod tests {
         }
 
         {
-            let s = &*s_exprs[2].get();
+            let s = &s_exprs[2];
             if let SExpr::String(source_ref) = s {
                 assert_eq!(source_ref.resolve(), "\\\"");
             } else {
@@ -1079,7 +1080,7 @@ mod tests {
         }
 
         {
-            let s = &*s_exprs[3].get();
+            let s = &s_exprs[3];
             if let SExpr::String(source_ref) = s {
                 assert_eq!(source_ref.resolve(), "\\n");
             } else {
@@ -1096,7 +1097,7 @@ mod tests {
         let s_exprs = lexer.parse_s_exprs().unwrap();
 
         {
-            let s = &*s_exprs[0].get();
+            let s = &s_exprs[0];
             if let SExpr::CtorIdent(var_id) = s {
                 assert_eq!(var_id.0.resolve(), "Foo");
             } else {
@@ -1105,7 +1106,7 @@ mod tests {
         }
 
         {
-            let s = &*s_exprs[1].get();
+            let s = &s_exprs[1];
             if let SExpr::VarIdent(var_id) = s {
                 assert_eq!(var_id.0.resolve(), "bar");
             } else {
@@ -1114,7 +1115,7 @@ mod tests {
         }
 
         {
-            let s = &*s_exprs[2].get();
+            let s = &s_exprs[2];
             if let SExpr::OpIdent(op_id) = s {
                 assert_eq!(op_id.0.resolve(), ">>=");
             } else {
@@ -1123,7 +1124,7 @@ mod tests {
         }
 
         {
-            let s = &*s_exprs[3].get();
+            let s = &s_exprs[3];
             if let SExpr::FieldAccessor(var_id) = s {
                 assert_eq!(var_id.0.resolve(), "some_field");
             } else {
@@ -1140,16 +1141,16 @@ mod tests {
         let s_exprs = lexer.parse_s_exprs().unwrap();
 
         {
-            let s = &*s_exprs[0].get();
+            let s = &s_exprs[0];
             if let SExpr::IdentPath(path) = s {
-                match &*path[0].get() {
+                match &path[0] {
                     SExpr::IdentpathNil => (),
                     _ => {
                         panic!("Expected IdentpathNil but found {:?}", s);
                     }
                 }
 
-                match &*path[1].get() {
+                match &path[1] {
                     SExpr::VarIdent(src_ref) => {
                         assert_eq!(src_ref.0.resolve(), "foo")
                     }
@@ -1163,9 +1164,9 @@ mod tests {
         }
 
         {
-            let s = &*s_exprs[1].get();
+            let s = &s_exprs[1];
             if let SExpr::IdentPath(path) = s {
-                match &*path[0].get() {
+                match &path[0] {
                     SExpr::VarIdent(src_ref) => {
                         assert_eq!(src_ref.0.resolve(), "foo")
                     }
@@ -1174,7 +1175,7 @@ mod tests {
                     }
                 }
 
-                match &*path[1].get() {
+                match &path[1] {
                     SExpr::CtorIdent(src_ref) => {
                         assert_eq!(src_ref.0.resolve(), "Bar")
                     }
@@ -1188,9 +1189,9 @@ mod tests {
         }
 
         {
-            let s = &*s_exprs[2].get();
+            let s = &s_exprs[2];
             if let SExpr::IdentPath(path) = s {
-                match &*path[0].get() {
+                match &path[0] {
                     SExpr::VarIdent(src_ref) => {
                         assert_eq!(src_ref.0.resolve(), "foo")
                     }
@@ -1199,7 +1200,7 @@ mod tests {
                     }
                 }
 
-                match &*path[1].get() {
+                match &path[1] {
                     SExpr::IdentpathNil => (),
                     _ => {
                         panic!("Expected IdentpathNil but found {:?}", s);
@@ -1219,8 +1220,8 @@ mod tests {
         let s_exprs = lexer.parse_s_exprs().unwrap();
 
         assert_eq!(
-            *s_exprs[0].get(),
-            SExpr::List(vec![RcMut::new(SExpr::I64(0)), RcMut::new(SExpr::I64(1))].into())
+            s_exprs[0],
+            SExpr::List(vec![SExpr::I64(0), SExpr::I64(1)].into())
         );
     }
 
@@ -1232,8 +1233,8 @@ mod tests {
         let s_exprs = lexer.parse_s_exprs().unwrap();
 
         assert_eq!(
-            *s_exprs[0].get(),
-            SExpr::QuoteList(vec![RcMut::new(SExpr::I64(0)), RcMut::new(SExpr::I64(1))].into())
+            s_exprs[0],
+            SExpr::QuoteList(vec![SExpr::I64(0), SExpr::I64(1)].into())
         );
 
         // ! temp failing test
@@ -1259,15 +1260,8 @@ mod tests {
         let s_exprs = lexer.parse_s_exprs().unwrap();
 
         assert_eq!(
-            *s_exprs[0].get(),
-            SExpr::List(
-                vec![
-                    RcMut::new(SExpr::Hash(2)),
-                    RcMut::new(SExpr::I64(0)),
-                    RcMut::new(SExpr::I64(1))
-                ]
-                .into()
-            )
+            s_exprs[0],
+            SExpr::List(vec![SExpr::Hash(2), SExpr::I64(0), SExpr::I64(1)].into())
         );
     }
 
@@ -1297,19 +1291,11 @@ mod tests {
         let s_exprs = lexer.parse_s_exprs().unwrap();
 
         assert_eq!(
-            *s_exprs[0].get(),
-            SExpr::List(
+            s_exprs[0],
+            SExpr::Directive(
                 vec![
-                    RcMut::new(SExpr::VarIdent(VarIdent(SourceRef::new(
-                        source.clone(),
-                        2,
-                        5
-                    )))), // foo
-                    RcMut::new(SExpr::VarIdent(VarIdent(SourceRef::new(
-                        source.clone(),
-                        6,
-                        9
-                    )))) // bar
+                    SExpr::VarIdent(VarIdent(SourceRef::new(source.clone(), 2, 5))), // foo
+                    SExpr::VarIdent(VarIdent(SourceRef::new(source.clone(), 6, 9)))  // bar
                 ]
                 .into()
             )
@@ -1324,16 +1310,16 @@ mod tests {
         let s_exprs = lexer.parse_s_exprs().unwrap();
 
         {
-            let s = &*s_exprs[0].get();
+            let s = &s_exprs[0];
             match s {
                 SExpr::List(list) => {
                     assert_eq!(list.len(), 2);
                     assert_eq!(
-                        *list[0].get(),
+                        list[0],
                         SExpr::FieldAccessor(VarIdent(SourceRef::new(source.clone(), 6, 9)))
                     );
                     assert_eq!(
-                        *list[1].get(),
+                        list[1],
                         SExpr::VarIdent(VarIdent(SourceRef::new(source.clone(), 1, 4)))
                     );
                 }
@@ -1342,27 +1328,15 @@ mod tests {
         }
 
         {
-            let s = &*s_exprs[1].get();
+            let s = &s_exprs[1];
 
             assert_eq!(
                 *s,
                 SExpr::List(
                     vec![
-                        RcMut::new(SExpr::VarIdent(VarIdent(SourceRef::new(
-                            source.clone(),
-                            18,
-                            21
-                        )))), // qux
-                        RcMut::new(SExpr::VarIdent(VarIdent(SourceRef::new(
-                            source.clone(),
-                            12,
-                            15
-                        )))), // baz
-                        RcMut::new(SExpr::VarIdent(VarIdent(SourceRef::new(
-                            source.clone(),
-                            22,
-                            26
-                        )))) // quux
+                        SExpr::VarIdent(VarIdent(SourceRef::new(source.clone(), 18, 21))), // qux
+                        SExpr::VarIdent(VarIdent(SourceRef::new(source.clone(), 12, 15))), // baz
+                        SExpr::VarIdent(VarIdent(SourceRef::new(source.clone(), 22, 26)))  // quux
                     ]
                     .into()
                 )
@@ -1378,26 +1352,22 @@ mod tests {
             let mut lexer = Lexer::new(source.clone());
             let s_exprs = lexer.parse_s_exprs().unwrap();
 
-            let s = &*s_exprs[0].get();
+            let s = &s_exprs[0];
             match s {
                 SExpr::List(list) => {
                     assert_eq!(list.len(), 3);
                     assert_eq!(
-                        *list[0].get(),
+                        list[0],
                         SExpr::IdentPath(
                             vec![
-                                RcMut::new(SExpr::CtorIdent(CtorIdent(SourceRef::new(
-                                    source.clone(),
-                                    3,
-                                    6
-                                )))), // Num
-                                RcMut::new(SExpr::Add)
+                                SExpr::CtorIdent(CtorIdent(SourceRef::new(source.clone(), 3, 6))), // Num
+                                SExpr::Add
                             ]
                             .into()
                         )
                     );
-                    assert_eq!(*list[1].get(), SExpr::I64(1));
-                    assert_eq!(*list[2].get(), SExpr::I64(2));
+                    assert_eq!(list[1], SExpr::I64(1));
+                    assert_eq!(list[2], SExpr::I64(2));
                 }
                 _ => panic!("Expected List but found {:?}", s),
             }

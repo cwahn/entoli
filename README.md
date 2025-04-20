@@ -51,17 +51,17 @@ Which will be desugared to (also how it would look in standard S-expression):
   (generate_report
     (reduce
       (map
-      (take
-        (sort
-        (filter users is_male)
-        (lambda u (
-          (= profile (.profile u))
-          (= avg_visit_period (/ (.membered_for profile) (.visit_count profile)))
-          (* avg_visit_period 0.5)
-        )))
-        10)
-     .score)
-    +)
+        (take
+          (sort
+            (filter users is_male)
+              (lambda u (
+                (= profile (.profile u))
+                (= avg_visit_period (/ (.membered_for profile) (.visit_count profile)))
+                (* avg_visit_period 0.5)
+              )))
+            10)
+        .score)
+      +)
   )
 )
 ```
