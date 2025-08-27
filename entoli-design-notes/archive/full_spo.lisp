@@ -311,7 +311,7 @@ False       ;; Boolean literal
 
 ;; Functor trait example
 (trait (Functor f)
-  (fmap : ((f a) -> ((a -> b) -> (f b)))) ;; Method friendly signature
+  (map : ((f a) -> ((a -> b) -> (f b)))) ;; Method friendly signature
 )
 
 ;; Applicative trait example

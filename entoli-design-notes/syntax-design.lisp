@@ -448,7 +448,7 @@ False       ; Boolean literal
 
 ;; Functor trait example
 (trait (Functor f)
-  (: fmap ((f a) -> ((a -> b) -> (f b))))
+  (: map ((f a) -> ((a -> b) -> (f b))))
 )
 
 ;; Applicative trait example
