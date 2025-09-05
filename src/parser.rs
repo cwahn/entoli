@@ -973,10 +973,7 @@ mod tests {
 
     #[test]
     fn test_parse_simple_function_definition() {
-        let s_exprs = lex_source(r#"
-            (add = (x y) 
-                (x + y))
-        "#);
+        let s_exprs = lex_source(r#"(add = (x y) (x + y))"#);
         let mut ctx = ParseContext::new();
         
         let decl = parse_decl(&mut ctx, &s_exprs[0].get()).unwrap();
@@ -1026,7 +1023,8 @@ mod tests {
         let s_exprs = lex_source(r#"
             (data (Maybe a) 
                 Nothing 
-                (Just a))
+                (Just a)
+            )
         "#);
         let mut ctx = ParseContext::new();
         
@@ -1125,7 +1123,8 @@ mod tests {
             (impl Show Bool 
                 (show = 
                     True  "True" 
-                    False "False"))
+                    False "False")
+                )
         "#);
         let mut ctx = ParseContext::new();
         
@@ -1186,7 +1185,9 @@ mod tests {
         let s_exprs = lex_source(r#"
             (mod my_module 
                 (data MyType 
-                    (MyCons Int)))
+                    (MyCons Int)
+                )
+            )
         "#);
         let mut ctx = ParseContext::new();
         
@@ -1272,7 +1273,8 @@ mod tests {
         let s_exprs = lex_source(r#"
             (match x 
                 (Nothing 0) 
-                ((Just y) y))
+                ((Just y) y)
+            )
         "#);
         let mut ctx = ParseContext::new();
         
