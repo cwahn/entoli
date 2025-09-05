@@ -1,9 +1,5 @@
+use crate::{base::RcMut, lexer::SExpr, source_ref::SourceRef};
 use std::rc::Rc;
-use crate::{
-    base::RcMut,
-    lexer::SExpr,
-    source_ref::SourceRef,
-};
 
 // ===========================================================
 // AST Types - Core Language Constructs
@@ -16,39 +12,39 @@ pub enum Ident {
     Quote,    // '
     Nil,      // Nil
     Hash(u8), // #2, #3, etc.
-    
+
     // Arithmetic operators
-    Add,      // +
-    Sub,      // -
-    Mul,      // * (Asterisk)
-    Div,      // /
-    Modulus,  // %
-    
+    Add,     // +
+    Sub,     // -
+    Mul,     // * (Asterisk)
+    Div,     // /
+    Modulus, // %
+
     // Comparison operators
-    Eq,       // ==
-    Ne,       // !=
-    Gt,       // >
-    Ge,       // >=
-    Lt,       // <
-    Le,       // <=
-    
+    Eq, // ==
+    Ne, // !=
+    Gt, // >
+    Ge, // >=
+    Lt, // <
+    Le, // <=
+
     // Logical operators
-    And,      // &
-    Or,       // |
-    Not,      // !
-    
+    And, // &
+    Or,  // |
+    Not, // !
+
     // Other operators
-    Dot,      // .
-    
+    Dot, // .
+
     // Unit type/value
-    Unit,     // ()
-    
+    Unit, // ()
+
     // Built-in types
     BoolType, // Bool
     I64Type,  // I64
     F64Type,  // F64
     StrType,  // Str
-    
+
     // User-defined identifiers
     CtorIdent(SourceRef),     // Constructor identifiers (uppercase)
     VarIdent(SourceRef),      // Variable identifiers (lowercase or _)
@@ -67,52 +63,52 @@ pub struct IdentPath(pub Vec<Ident>);
 pub enum Expr {
     // Literal values
     Literal(LiteralExpr),
-    
+
     // Variable reference
     Var(IdentPath),
-    
+
     // Function application
     App {
         func: Box<Expr>,
         args: Vec<Expr>,
     },
-    
+
     // Lambda function
     Lambda {
         params: Vec<Pattern>,
         body: Box<Expr>,
     },
-    
+
     // Let binding
     Let {
         pattern: Pattern,
         value: Box<Expr>,
         body: Box<Expr>,
     },
-    
+
     // Pattern matching
     Match {
         expr: Box<Expr>,
         arms: Vec<MatchArm>,
     },
-    
+
     // Do notation for monadic computation
     Do {
         stmts: Vec<DoStmt>,
     },
-    
+
     // Type annotation
     TypeAnnot {
         expr: Box<Expr>,
         type_expr: TypeExpr,
     },
-    
+
     // Field access
     FieldAccess {
         object: Box<Expr>,
         field: Ident,
     },
-    
+
     // Method call
     MethodCall {
         object: Box<Expr>,
@@ -142,10 +138,7 @@ pub struct MatchArm {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum DoStmt {
-    Bind {
-        pattern: Pattern,
-        expr: Expr,
-    },
+    Bind { pattern: Pattern, expr: Expr },
     Expr(Expr),
 }
 
@@ -157,31 +150,31 @@ pub enum DoStmt {
 pub enum Pattern {
     // Variable binding
     Var(Ident),
-    
+
     // List variable binding (like xs..)
     ListVar(Ident),
-    
+
     // Literal pattern
     Literal(LiteralExpr),
-    
+
     // Constructor pattern
     Constructor {
         ctor: IdentPath,
         args: Vec<Pattern>,
     },
-    
+
     // Tuple pattern
     Tuple(Vec<Pattern>),
-    
+
     // List pattern
     List {
         elements: Vec<Pattern>,
         rest: Option<Box<Pattern>>, // for patterns like '(x xs..)
     },
-    
+
     // Wildcard pattern
     Wildcard,
-    
+
     // As pattern (pattern binding)
     As {
         pattern: Box<Pattern>,
@@ -197,31 +190,31 @@ pub enum Pattern {
 pub enum TypeExpr {
     // Type variable
     Var(Ident),
-    
+
     // Type constructor
     Constructor {
         ctor: IdentPath,
         args: Vec<TypeExpr>,
     },
-    
+
     // Function type
     Function {
         param: Box<TypeExpr>,
         result: Box<TypeExpr>,
     },
-    
+
     // Tuple type
     Tuple(Vec<TypeExpr>),
-    
+
     // List type
     List(Box<TypeExpr>),
-    
+
     // Universal quantification (forall)
     Forall {
         vars: Vec<Ident>,
         body: Box<TypeExpr>,
     },
-    
+
     // Type with constraints
     Constrained {
         constraints: Vec<Constraint>,
@@ -246,13 +239,13 @@ pub enum Decl {
         name: Ident,
         type_expr: TypeExpr,
     },
-    
+
     // Function definition
     FunctionDef {
         name: Ident,
         rules: Vec<FunctionRule>,
     },
-    
+
     // Data type definition
     DataDef {
         name: Ident,
@@ -260,7 +253,7 @@ pub enum Decl {
         constructors: Vec<Constructor>,
         constraints: Vec<Constraint>,
     },
-    
+
     // Type alias
     TypeAlias {
         name: Ident,
@@ -268,7 +261,7 @@ pub enum Decl {
         body: TypeExpr,
         constraints: Vec<Constraint>,
     },
-    
+
     // Trait definition
     TraitDef {
         name: Ident,
@@ -276,7 +269,7 @@ pub enum Decl {
         constraints: Vec<Constraint>,
         items: Vec<TraitItem>,
     },
-    
+
     // Trait implementation
     ImplDef {
         trait_name: Option<IdentPath>, // None for inherent impl
@@ -284,19 +277,19 @@ pub enum Decl {
         constraints: Vec<Constraint>,
         items: Vec<ImplItem>,
     },
-    
+
     // Module definition
     ModuleDef {
         name: Ident,
         items: Vec<Decl>,
     },
-    
+
     // Use declaration
     UseDef {
         path: IdentPath,
         items: Option<Vec<UseItem>>, // None for wildcard import
     },
-    
+
     // Kind annotation
     KindAnnotation {
         name: Ident,
@@ -321,12 +314,9 @@ pub struct Constructor {
 pub enum ConstructorField {
     // Positional field
     Positional(TypeExpr),
-    
+
     // Named field (for records)
-    Named {
-        name: Ident,
-        type_expr: TypeExpr,
-    },
+    Named { name: Ident, type_expr: TypeExpr },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -336,7 +326,7 @@ pub enum TraitItem {
         name: Ident,
         type_expr: TypeExpr,
     },
-    
+
     // Default implementation
     FunctionDef {
         name: Ident,
@@ -369,13 +359,10 @@ pub enum UseItem {
 pub enum Kind {
     // Base kind *
     Star,
-    
+
     // Function kind
-    Arrow {
-        param: Box<Kind>,
-        result: Box<Kind>,
-    },
-    
+    Arrow { param: Box<Kind>, result: Box<Kind> },
+
     // Constraint kind
     Constraint,
 }
@@ -423,14 +410,16 @@ pub fn parse_expr(_ctx: &mut ParseContext, s_expr: &SExpr) -> Result<Expr, Strin
         SExpr::F64(value) => Ok(Expr::Literal(LiteralExpr::F64(*value))),
         SExpr::Bool(value) => Ok(Expr::Literal(LiteralExpr::Bool(*value))),
         SExpr::Char(value) => Ok(Expr::Literal(LiteralExpr::Char(*value))),
-        SExpr::String(source_ref) => Ok(Expr::Literal(LiteralExpr::String(source_ref.resolve().to_string()))),
+        SExpr::String(source_ref) => Ok(Expr::Literal(LiteralExpr::String(
+            source_ref.resolve().to_string(),
+        ))),
         SExpr::Unit => Ok(Expr::Literal(LiteralExpr::Unit)),
-        
+
         // Variable identifiers
         SExpr::VarIdent(var_ident) => {
             let ident_path = IdentPath(vec![Ident::VarIdent(var_ident.0.clone())]);
             Ok(Expr::Var(ident_path))
-        },
+        }
         SExpr::CtorIdent(ctor_ident) => {
             // Special case for boolean literals
             let content = ctor_ident.0.resolve();
@@ -442,8 +431,154 @@ pub fn parse_expr(_ctx: &mut ParseContext, s_expr: &SExpr) -> Result<Expr, Strin
                     Ok(Expr::Var(ident_path))
                 }
             }
-        },
+        }
         
+        // List expressions - function applications, special forms, etc.
+        SExpr::List(elements) => {
+            if elements.is_empty() {
+                return Err("Empty list expression not allowed".to_string());
+            }
+            
+            let first = &*elements[0].get();
+            match first {
+                // Lambda expressions
+                SExpr::Lambda => {
+                    if elements.len() < 3 {
+                        return Err("Lambda expression requires at least parameters and body".to_string());
+                    }
+                    
+                    // Parse parameters
+                    let params = match &*elements[1].get() {
+                        // Multiple parameters: (lambda (x y) body)
+                        SExpr::List(param_list) => {
+                            let mut params = Vec::new();
+                            for param in param_list.iter() {
+                                params.push(parse_pattern(_ctx, &param.get())?);
+                            }
+                            params
+                        }
+                        // Single parameter: (lambda x body)
+                        _ => {
+                            vec![parse_pattern(_ctx, &elements[1].get())?]
+                        }
+                    };
+                    
+                    // Parse body (could be multiple expressions, treat as sequence)
+                    let body = if elements.len() == 3 {
+                        parse_expr(_ctx, &elements[2].get())?
+                    } else {
+                        // Multiple expressions - for now, just take the last one
+                        // TODO: Handle proper sequential expressions
+                        parse_expr(_ctx, &elements[elements.len() - 1].get())?
+                    };
+                    
+                    Ok(Expr::Lambda {
+                        params,
+                        body: Box::new(body),
+                    })
+                }
+                
+                // Match expressions
+                SExpr::Match => {
+                    if elements.len() < 3 {
+                        return Err("Match expression requires expression and at least one arm".to_string());
+                    }
+                    
+                    let expr = parse_expr(_ctx, &elements[1].get())?;
+                    let mut arms = Vec::new();
+                    
+                    // Parse match arms (each arm is a list with pattern and body)
+                    for i in 2..elements.len() {
+                        match &*elements[i].get() {
+                            SExpr::List(arm_elements) => {
+                                if arm_elements.len() < 2 {
+                                    return Err("Match arm requires pattern and body".to_string());
+                                }
+                                let pattern = parse_pattern(_ctx, &arm_elements[0].get())?;
+                                let body = parse_expr(_ctx, &arm_elements[1].get())?;
+                                arms.push(MatchArm {
+                                    pattern,
+                                    guard: None, // TODO: Handle guards
+                                    body,
+                                });
+                            }
+                            _ => return Err("Match arm must be a list".to_string()),
+                        }
+                    }
+                    
+                    Ok(Expr::Match {
+                        expr: Box::new(expr),
+                        arms,
+                    })
+                }
+                
+                // Do expressions
+                SExpr::Do => {
+                    let mut stmts = Vec::new();
+                    
+                    for i in 1..elements.len() {
+                        match &*elements[i].get() {
+                            SExpr::List(stmt_elements) => {
+                                if stmt_elements.len() >= 3 {
+                                    // Check if it's a binding (pattern := expr)
+                                    if let SExpr::DoBinding = &*stmt_elements[1].get() {
+                                        let pattern = parse_pattern(_ctx, &stmt_elements[0].get())?;
+                                        let expr = parse_expr(_ctx, &stmt_elements[2].get())?;
+                                        stmts.push(DoStmt::Bind { pattern, expr });
+                                        continue;
+                                    }
+                                }
+                                // Regular expression statement
+                                let expr = parse_expr(_ctx, &elements[i].get())?;
+                                stmts.push(DoStmt::Expr(expr));
+                            }
+                            _ => {
+                                // Single expression statement
+                                let expr = parse_expr(_ctx, &elements[i].get())?;
+                                stmts.push(DoStmt::Expr(expr));
+                            }
+                        }
+                    }
+                    
+                    Ok(Expr::Do { stmts })
+                }
+                
+                // Tuple construction with hash
+                SExpr::Hash(_) => {
+                    let mut tuple_elements = Vec::new();
+                    // Skip the hash element, parse the rest as tuple elements
+                    for i in 1..elements.len() {
+                        tuple_elements.push(parse_expr(_ctx, &elements[i].get())?);
+                    }
+                    Ok(Expr::Literal(LiteralExpr::Tuple(tuple_elements)))
+                }
+                
+                // Function application or operator application
+                _ => {
+                    let func = parse_expr(_ctx, &elements[0].get())?;
+                    let mut args = Vec::new();
+                    
+                    for i in 1..elements.len() {
+                        args.push(parse_expr(_ctx, &elements[i].get())?);
+                    }
+                    
+                    Ok(Expr::App {
+                        func: Box::new(func),
+                        args,
+                    })
+                }
+            }
+        }
+        
+        // Quoted lists (list literals)
+        SExpr::QuoteList(elements) => {
+            let mut list_elements = Vec::new();
+            for element in elements.iter() {
+                list_elements.push(parse_expr(_ctx, &element.get())?);
+            }
+            Ok(Expr::Literal(LiteralExpr::List(list_elements)))
+        }
+
         _ => {
             unimplemented!("parse_expr for {:?} not implemented yet", s_expr)
         }
@@ -458,18 +593,20 @@ pub fn parse_pattern(_ctx: &mut ParseContext, s_expr: &SExpr) -> Result<Pattern,
         SExpr::F64(value) => Ok(Pattern::Literal(LiteralExpr::F64(*value))),
         SExpr::Bool(value) => Ok(Pattern::Literal(LiteralExpr::Bool(*value))),
         SExpr::Char(value) => Ok(Pattern::Literal(LiteralExpr::Char(*value))),
-        SExpr::String(source_ref) => Ok(Pattern::Literal(LiteralExpr::String(source_ref.resolve().to_string()))),
+        SExpr::String(source_ref) => Ok(Pattern::Literal(LiteralExpr::String(
+            source_ref.resolve().to_string(),
+        ))),
         SExpr::Unit => Ok(Pattern::Literal(LiteralExpr::Unit)),
-        
+
         // Wildcard pattern
         SExpr::Wildcard => Ok(Pattern::Wildcard),
-        
+
         // Variable patterns
         SExpr::VarIdent(var_ident) => Ok(Pattern::Var(Ident::VarIdent(var_ident.0.clone()))),
-        
+
         // List variable patterns (like xs..)
         SExpr::ListIdent(list_ident) => Ok(Pattern::ListVar(Ident::VarIdent(list_ident.0.clone()))),
-        
+
         // Constructor patterns (without args)
         SExpr::CtorIdent(ctor_ident) => {
             let ident_path = IdentPath(vec![Ident::CtorIdent(ctor_ident.0.clone())]);
@@ -477,10 +614,74 @@ pub fn parse_pattern(_ctx: &mut ParseContext, s_expr: &SExpr) -> Result<Pattern,
                 ctor: ident_path,
                 args: vec![],
             })
-        },
+        }
         
+        // List patterns - constructor patterns, tuple patterns, list patterns
+        SExpr::List(elements) => {
+            if elements.is_empty() {
+                return Err("Empty list pattern not allowed".to_string());
+            }
+            
+            let first = &*elements[0].get();
+            match first {
+                // Tuple patterns with hash
+                SExpr::Hash(_) => {
+                    let mut tuple_elements = Vec::new();
+                    // Skip the hash element, parse the rest as tuple elements
+                    for i in 1..elements.len() {
+                        tuple_elements.push(parse_pattern(_ctx, &elements[i].get())?);
+                    }
+                    Ok(Pattern::Tuple(tuple_elements))
+                }
+                
+                // Constructor patterns
+                SExpr::CtorIdent(ctor_ident) => {
+                    let ident_path = IdentPath(vec![Ident::CtorIdent(ctor_ident.0.clone())]);
+                    let mut args = Vec::new();
+                    
+                    // Parse constructor arguments
+                    for i in 1..elements.len() {
+                        args.push(parse_pattern(_ctx, &elements[i].get())?);
+                    }
+                    
+                    Ok(Pattern::Constructor {
+                        ctor: ident_path,
+                        args,
+                    })
+                }
+                
+                _ => {
+                    return Err(format!("Unsupported list pattern starting with {:?}", first));
+                }
+            }
+        }
+        
+        // Quoted list patterns  
+        SExpr::QuoteList(elements) => {
+            let mut list_elements = Vec::new();
+            let mut rest = None;
+            
+            for element in elements.iter() {
+                match &*element.get() {
+                    SExpr::ListIdent(_) => {
+                        // This is the rest pattern (xs..)
+                        rest = Some(Box::new(parse_pattern(_ctx, &element.get())?));
+                        break;
+                    }
+                    _ => {
+                        list_elements.push(parse_pattern(_ctx, &element.get())?);
+                    }
+                }
+            }
+            
+            Ok(Pattern::List {
+                elements: list_elements,
+                rest,
+            })
+        }
+
         _ => {
-            unimplemented!("parse_pattern for {:?} not implemented yet", s_expr)
+            unimplemented!("parse_pattern for {s_expr:?} not implemented yet")
         }
     }
 }
@@ -490,7 +691,7 @@ pub fn parse_type_expr(_ctx: &mut ParseContext, s_expr: &SExpr) -> Result<TypeEx
     match s_expr {
         // Type variables (lowercase identifiers)
         SExpr::VarIdent(var_ident) => Ok(TypeExpr::Var(Ident::VarIdent(var_ident.0.clone()))),
-        
+
         // Type constructors (uppercase identifiers)
         SExpr::CtorIdent(ctor_ident) => {
             let ident_path = IdentPath(vec![Ident::CtorIdent(ctor_ident.0.clone())]);
@@ -498,60 +699,115 @@ pub fn parse_type_expr(_ctx: &mut ParseContext, s_expr: &SExpr) -> Result<TypeEx
                 ctor: ident_path,
                 args: vec![],
             })
-        },
-        
+        }
+
         // Built-in types - create dummy source refs for now
         SExpr::I64Type => {
             let dummy_source = Rc::new("i64".to_string());
-            let ident_path = IdentPath(vec![Ident::CtorIdent(
-                crate::source_ref::SourceRef::new(dummy_source, 0, 3)
-            )]);
+            let ident_path = IdentPath(vec![Ident::CtorIdent(crate::source_ref::SourceRef::new(
+                dummy_source,
+                0,
+                3,
+            ))]);
             Ok(TypeExpr::Constructor {
                 ctor: ident_path,
                 args: vec![],
             })
-        },
+        }
         SExpr::F64Type => {
             let dummy_source = Rc::new("f64".to_string());
-            let ident_path = IdentPath(vec![Ident::CtorIdent(
-                crate::source_ref::SourceRef::new(dummy_source, 0, 3)
-            )]);
+            let ident_path = IdentPath(vec![Ident::CtorIdent(crate::source_ref::SourceRef::new(
+                dummy_source,
+                0,
+                3,
+            ))]);
             Ok(TypeExpr::Constructor {
                 ctor: ident_path,
                 args: vec![],
             })
-        },
+        }
         SExpr::BoolType => {
             let dummy_source = Rc::new("bool".to_string());
-            let ident_path = IdentPath(vec![Ident::CtorIdent(
-                crate::source_ref::SourceRef::new(dummy_source, 0, 4)
-            )]);
+            let ident_path = IdentPath(vec![Ident::CtorIdent(crate::source_ref::SourceRef::new(
+                dummy_source,
+                0,
+                4,
+            ))]);
             Ok(TypeExpr::Constructor {
                 ctor: ident_path,
                 args: vec![],
             })
-        },
+        }
         SExpr::StrType => {
             let dummy_source = Rc::new("str".to_string());
-            let ident_path = IdentPath(vec![Ident::CtorIdent(
-                crate::source_ref::SourceRef::new(dummy_source, 0, 3)
-            )]);
+            let ident_path = IdentPath(vec![Ident::CtorIdent(crate::source_ref::SourceRef::new(
+                dummy_source,
+                0,
+                3,
+            ))]);
             Ok(TypeExpr::Constructor {
                 ctor: ident_path,
                 args: vec![],
             })
-        },
+        }
         SExpr::Unit => {
             let dummy_source = Rc::new("()".to_string());
-            let ident_path = IdentPath(vec![Ident::CtorIdent(
-                crate::source_ref::SourceRef::new(dummy_source, 0, 2)
-            )]);
+            let ident_path = IdentPath(vec![Ident::CtorIdent(crate::source_ref::SourceRef::new(
+                dummy_source,
+                0,
+                2,
+            ))]);
             Ok(TypeExpr::Constructor {
                 ctor: ident_path,
                 args: vec![],
             })
-        },
+        }
         
+        // List types - function types, parameterized types
+        SExpr::List(elements) => {
+            if elements.is_empty() {
+                return Err("Empty list type not allowed".to_string());
+            }
+            
+            let first = &*elements[0].get();
+            match first {
+                // Function types (Arrow)
+                SExpr::Arrow => {
+                    if elements.len() != 3 {
+                        return Err("Arrow type requires exactly two type arguments".to_string());
+                    }
+                    
+                    let from_type = parse_type_expr(_ctx, &elements[1].get())?;
+                    let to_type = parse_type_expr(_ctx, &elements[2].get())?;
+                    
+                    Ok(TypeExpr::Function {
+                        param: Box::new(from_type),
+                        result: Box::new(to_type),
+                    })
+                }
+                
+                // Parameterized type constructors
+                SExpr::CtorIdent(ctor_ident) => {
+                    let ident_path = IdentPath(vec![Ident::CtorIdent(ctor_ident.0.clone())]);
+                    let mut args = Vec::new();
+                    
+                    // Parse type arguments
+                    for i in 1..elements.len() {
+                        args.push(parse_type_expr(_ctx, &elements[i].get())?);
+                    }
+                    
+                    Ok(TypeExpr::Constructor {
+                        ctor: ident_path,
+                        args,
+                    })
+                }
+                
+                _ => {
+                    return Err(format!("Unsupported list type starting with {:?}", first));
+                }
+            }
+        }
+
         _ => {
             unimplemented!("parse_type_expr for {:?} not implemented yet", s_expr)
         }
@@ -578,7 +834,7 @@ mod tests {
     fn test_parse_integer_literal() {
         let s_exprs = lex_source("42");
         let mut ctx = ParseContext::new();
-        
+
         let expr = parse_expr(&mut ctx, &s_exprs[0].get()).unwrap();
         assert_eq!(expr, Expr::Literal(LiteralExpr::I64(42)));
     }
@@ -587,7 +843,7 @@ mod tests {
     fn test_parse_float_literal() {
         let s_exprs = lex_source("3.14");
         let mut ctx = ParseContext::new();
-        
+
         let expr = parse_expr(&mut ctx, &s_exprs[0].get()).unwrap();
         assert_eq!(expr, Expr::Literal(LiteralExpr::F64(3.14)));
     }
@@ -596,16 +852,19 @@ mod tests {
     fn test_parse_string_literal() {
         let s_exprs = lex_source("\"hello\"");
         let mut ctx = ParseContext::new();
-        
+
         let expr = parse_expr(&mut ctx, &s_exprs[0].get()).unwrap();
-        assert_eq!(expr, Expr::Literal(LiteralExpr::String("hello".to_string())));
+        assert_eq!(
+            expr,
+            Expr::Literal(LiteralExpr::String("hello".to_string()))
+        );
     }
 
     #[test]
     fn test_parse_char_literal() {
         let s_exprs = lex_source("'c'");
         let mut ctx = ParseContext::new();
-        
+
         let expr = parse_expr(&mut ctx, &s_exprs[0].get()).unwrap();
         assert_eq!(expr, Expr::Literal(LiteralExpr::Char('c')));
     }
@@ -615,10 +874,10 @@ mod tests {
         let true_exprs = lex_source("True");
         let false_exprs = lex_source("False");
         let mut ctx = ParseContext::new();
-        
+
         let true_expr = parse_expr(&mut ctx, &true_exprs[0].get()).unwrap();
         let false_expr = parse_expr(&mut ctx, &false_exprs[0].get()).unwrap();
-        
+
         assert_eq!(true_expr, Expr::Literal(LiteralExpr::Bool(true)));
         assert_eq!(false_expr, Expr::Literal(LiteralExpr::Bool(false)));
     }
@@ -627,7 +886,7 @@ mod tests {
     fn test_parse_unit_literal() {
         let s_exprs = lex_source("()");
         let mut ctx = ParseContext::new();
-        
+
         let expr = parse_expr(&mut ctx, &s_exprs[0].get()).unwrap();
         assert_eq!(expr, Expr::Literal(LiteralExpr::Unit));
     }
@@ -640,7 +899,7 @@ mod tests {
     fn test_parse_variable_identifier() {
         let s_exprs = lex_source("variable_name");
         let mut ctx = ParseContext::new();
-        
+
         let expr = parse_expr(&mut ctx, &s_exprs[0].get()).unwrap();
         match expr {
             Expr::Var(IdentPath(idents)) => {
@@ -660,7 +919,7 @@ mod tests {
     fn test_parse_private_variable_identifier() {
         let s_exprs = lex_source("_private_var");
         let mut ctx = ParseContext::new();
-        
+
         let expr = parse_expr(&mut ctx, &s_exprs[0].get()).unwrap();
         match expr {
             Expr::Var(IdentPath(idents)) => {
@@ -685,7 +944,7 @@ mod tests {
     fn test_parse_list_literal() {
         let s_exprs = lex_source("'(1 2 3)");
         let mut ctx = ParseContext::new();
-        
+
         let expr = parse_expr(&mut ctx, &s_exprs[0].get()).unwrap();
         match expr {
             Expr::Literal(LiteralExpr::List(elements)) => {
@@ -702,13 +961,16 @@ mod tests {
     fn test_parse_tuple_literal() {
         let s_exprs = lex_source("#(1 \"two\" 3.0)");
         let mut ctx = ParseContext::new();
-        
+
         let expr = parse_expr(&mut ctx, &s_exprs[0].get()).unwrap();
         match expr {
             Expr::Literal(LiteralExpr::Tuple(elements)) => {
                 assert_eq!(elements.len(), 3);
                 assert_eq!(elements[0], Expr::Literal(LiteralExpr::I64(1)));
-                assert_eq!(elements[1], Expr::Literal(LiteralExpr::String("two".to_string())));
+                assert_eq!(
+                    elements[1],
+                    Expr::Literal(LiteralExpr::String("two".to_string()))
+                );
                 assert_eq!(elements[2], Expr::Literal(LiteralExpr::F64(3.0)));
             }
             _ => panic!("Expected Tuple literal"),
@@ -723,7 +985,7 @@ mod tests {
     fn test_parse_simple_function_application() {
         let s_exprs = lex_source(r#"(f x)"#);
         let mut ctx = ParseContext::new();
-        
+
         let expr = parse_expr(&mut ctx, &s_exprs[0].get()).unwrap();
         match expr {
             Expr::App { func, args } => {
@@ -740,7 +1002,7 @@ mod tests {
                     }
                     _ => panic!("Expected Var for function"),
                 }
-                
+
                 // Should have one argument 'x'
                 assert_eq!(args.len(), 1);
                 match &args[0] {
@@ -765,7 +1027,7 @@ mod tests {
         // Test SPO: (3 + 4) should desugar to (+ 3 4)
         let s_exprs = lex_source(r#"(3 + 4)"#);
         let mut ctx = ParseContext::new();
-        
+
         let expr = parse_expr(&mut ctx, &s_exprs[0].get()).unwrap();
         match expr {
             Expr::App { func, args } => {
@@ -777,7 +1039,7 @@ mod tests {
                     }
                     _ => panic!("Expected Add operator"),
                 }
-                
+
                 // Should have two arguments: 3 and 4
                 assert_eq!(args.len(), 2);
                 assert_eq!(args[0], Expr::Literal(LiteralExpr::I64(3)));
@@ -795,7 +1057,7 @@ mod tests {
     fn test_parse_simple_lambda() {
         let s_exprs = lex_source(r#"(lambda x x)"#);
         let mut ctx = ParseContext::new();
-        
+
         let expr = parse_expr(&mut ctx, &s_exprs[0].get()).unwrap();
         match expr {
             Expr::Lambda { params, body } => {
@@ -807,7 +1069,7 @@ mod tests {
                     }
                     _ => panic!("Expected Var pattern for parameter"),
                 }
-                
+
                 // Body should be variable 'x'
                 match *body {
                     Expr::Var(IdentPath(ref idents)) => {
@@ -830,7 +1092,7 @@ mod tests {
     fn test_parse_lambda_with_multiple_params() {
         let s_exprs = lex_source(r#"(lambda (x y) (x + y))"#);
         let mut ctx = ParseContext::new();
-        
+
         let expr = parse_expr(&mut ctx, &s_exprs[0].get()).unwrap();
         match expr {
             Expr::Lambda { params, body: _ } => {
@@ -861,7 +1123,7 @@ mod tests {
     fn test_parse_wildcard_pattern() {
         let s_exprs = lex_source("_");
         let mut ctx = ParseContext::new();
-        
+
         let pattern = parse_pattern(&mut ctx, &s_exprs[0].get()).unwrap();
         assert_eq!(pattern, Pattern::Wildcard);
     }
@@ -870,7 +1132,7 @@ mod tests {
     fn test_parse_variable_pattern() {
         let s_exprs = lex_source("x");
         let mut ctx = ParseContext::new();
-        
+
         let pattern = parse_pattern(&mut ctx, &s_exprs[0].get()).unwrap();
         match pattern {
             Pattern::Var(Ident::VarIdent(source_ref)) => {
@@ -884,7 +1146,7 @@ mod tests {
     fn test_parse_constructor_pattern() {
         let s_exprs = lex_source(r#"(Just x)"#);
         let mut ctx = ParseContext::new();
-        
+
         let pattern = parse_pattern(&mut ctx, &s_exprs[0].get()).unwrap();
         match pattern {
             Pattern::Constructor { ctor, args } => {
@@ -900,7 +1162,7 @@ mod tests {
                         }
                     }
                 }
-                
+
                 // Should have one argument pattern 'x'
                 assert_eq!(args.len(), 1);
                 match &args[0] {
@@ -918,7 +1180,7 @@ mod tests {
     fn test_parse_tuple_pattern() {
         let s_exprs = lex_source("#(a b)");
         let mut ctx = ParseContext::new();
-        
+
         let pattern = parse_pattern(&mut ctx, &s_exprs[0].get()).unwrap();
         match pattern {
             Pattern::Tuple(elements) => {
@@ -944,7 +1206,7 @@ mod tests {
     fn test_parse_list_pattern() {
         let s_exprs = lex_source(r#"'(x xs..)"#);
         let mut ctx = ParseContext::new();
-        
+
         let pattern = parse_pattern(&mut ctx, &s_exprs[0].get()).unwrap();
         match pattern {
             Pattern::List { elements, rest } => {
@@ -956,7 +1218,7 @@ mod tests {
                     }
                     _ => panic!("Expected Var pattern for list element"),
                 }
-                
+
                 // Should have rest pattern 'xs'
                 assert!(rest.is_some());
                 match rest.as_ref().unwrap().as_ref() {
@@ -974,7 +1236,7 @@ mod tests {
     fn test_parse_list_variable_pattern() {
         let s_exprs = lex_source(r#"xs.."#);
         let mut ctx = ParseContext::new();
-        
+
         let pattern = parse_pattern(&mut ctx, &s_exprs[0].get()).unwrap();
         match pattern {
             Pattern::ListVar(Ident::VarIdent(source_ref)) => {
@@ -992,7 +1254,7 @@ mod tests {
     fn test_parse_simple_type() {
         let s_exprs = lex_source("Int");
         let mut ctx = ParseContext::new();
-        
+
         let type_expr = parse_type_expr(&mut ctx, &s_exprs[0].get()).unwrap();
         match type_expr {
             TypeExpr::Constructor { ctor, args } => {
@@ -1017,13 +1279,16 @@ mod tests {
     fn test_parse_function_type() {
         let s_exprs = lex_source(r#"(Int -> Bool)"#);
         let mut ctx = ParseContext::new();
-        
+
         let type_expr = parse_type_expr(&mut ctx, &s_exprs[0].get()).unwrap();
         match type_expr {
             TypeExpr::Function { param, result } => {
                 // Parameter should be Int
                 match *param {
-                    TypeExpr::Constructor { ctor: IdentPath(ref idents), args } => {
+                    TypeExpr::Constructor {
+                        ctor: IdentPath(ref idents),
+                        args,
+                    } => {
                         assert_eq!(idents.len(), 1);
                         match &idents[0] {
                             Ident::CtorIdent(source_ref) => {
@@ -1035,10 +1300,13 @@ mod tests {
                     }
                     _ => panic!("Expected Constructor for param type"),
                 }
-                
+
                 // Result should be Bool
                 match *result {
-                    TypeExpr::Constructor { ctor: IdentPath(ref idents), args } => {
+                    TypeExpr::Constructor {
+                        ctor: IdentPath(ref idents),
+                        args,
+                    } => {
                         assert_eq!(idents.len(), 1);
                         match &idents[0] {
                             Ident::CtorIdent(source_ref) => {
@@ -1059,7 +1327,7 @@ mod tests {
     fn test_parse_parameterized_type() {
         let s_exprs = lex_source(r#"(Maybe a)"#);
         let mut ctx = ParseContext::new();
-        
+
         let type_expr = parse_type_expr(&mut ctx, &s_exprs[0].get()).unwrap();
         match type_expr {
             TypeExpr::Constructor { ctor, args } => {
@@ -1075,7 +1343,7 @@ mod tests {
                         }
                     }
                 }
-                
+
                 // Should have one type argument 'a'
                 assert_eq!(args.len(), 1);
                 match &args[0] {
@@ -1095,21 +1363,21 @@ mod tests {
 
     #[test]
     fn test_parse_type_annotation() {
-        let s_exprs = lex_source(r#"
+        let s_exprs = lex_source(
+            r#"
             (add : (Int -> (Int -> Int)))
-        "#);
+        "#,
+        );
         let mut ctx = ParseContext::new();
-        
+
         let decl = parse_decl(&mut ctx, &s_exprs[0].get()).unwrap();
         match decl {
-            Decl::TypeAnnotation { name, type_expr: _ } => {
-                match name {
-                    Ident::VarIdent(source_ref) => {
-                        assert_eq!(source_ref.resolve(), "add");
-                    }
-                    _ => panic!("Expected VarIdent for function name"),
+            Decl::TypeAnnotation { name, type_expr: _ } => match name {
+                Ident::VarIdent(source_ref) => {
+                    assert_eq!(source_ref.resolve(), "add");
                 }
-            }
+                _ => panic!("Expected VarIdent for function name"),
+            },
             _ => panic!("Expected TypeAnnotation declaration"),
         }
     }
@@ -1118,7 +1386,7 @@ mod tests {
     fn test_parse_simple_function_definition() {
         let s_exprs = lex_source(r#"(add = (x y) (x + y))"#);
         let mut ctx = ParseContext::new();
-        
+
         let decl = parse_decl(&mut ctx, &s_exprs[0].get()).unwrap();
         match decl {
             Decl::FunctionDef { name, rules } => {
@@ -1129,11 +1397,11 @@ mod tests {
                     }
                     _ => panic!("Expected VarIdent for function name"),
                 }
-                
+
                 // Should have one rule
                 assert_eq!(rules.len(), 1);
                 let rule = &rules[0];
-                
+
                 // Should have two patterns: x and y
                 assert_eq!(rule.patterns.len(), 2);
                 match &rule.patterns[0] {
@@ -1148,7 +1416,7 @@ mod tests {
                     }
                     _ => panic!("Expected Var pattern for second parameter"),
                 }
-                
+
                 // Body should be (x + y) application
                 match &rule.body {
                     Expr::App { func: _, args } => {
@@ -1163,17 +1431,24 @@ mod tests {
 
     #[test]
     fn test_parse_data_definition() {
-        let s_exprs = lex_source(r#"
+        let s_exprs = lex_source(
+            r#"
             (data (Maybe a) 
                 Nothing 
                 (Just a)
             )
-        "#);
+        "#,
+        );
         let mut ctx = ParseContext::new();
-        
+
         let decl = parse_decl(&mut ctx, &s_exprs[0].get()).unwrap();
         match decl {
-            Decl::DataDef { name, type_params, constructors, constraints: _ } => {
+            Decl::DataDef {
+                name,
+                type_params,
+                constructors,
+                constraints: _,
+            } => {
                 // Type name should be 'Maybe'
                 match name {
                     Ident::CtorIdent(source_ref) => {
@@ -1181,7 +1456,7 @@ mod tests {
                     }
                     _ => panic!("Expected CtorIdent for type name"),
                 }
-                
+
                 // Should have one type parameter 'a'
                 assert_eq!(type_params.len(), 1);
                 match &type_params[0] {
@@ -1190,7 +1465,7 @@ mod tests {
                     }
                     _ => panic!("Expected VarIdent for type parameter"),
                 }
-                
+
                 // Should have two constructors: Nothing and Just
                 assert_eq!(constructors.len(), 2);
                 match &constructors[0].name {
@@ -1205,7 +1480,7 @@ mod tests {
                     }
                     _ => panic!("Expected CtorIdent for Just constructor"),
                 }
-                
+
                 // Nothing should have no fields, Just should have one
                 assert_eq!(constructors[0].fields.len(), 0);
                 assert_eq!(constructors[1].fields.len(), 1);
@@ -1216,15 +1491,22 @@ mod tests {
 
     #[test]
     fn test_parse_trait_definition() {
-        let s_exprs = lex_source(r#"
+        let s_exprs = lex_source(
+            r#"
             (trait (Show a) 
                 (show : (a -> String)))
-        "#);
+        "#,
+        );
         let mut ctx = ParseContext::new();
-        
+
         let decl = parse_decl(&mut ctx, &s_exprs[0].get()).unwrap();
         match decl {
-            Decl::TraitDef { name, type_params, constraints: _, items } => {
+            Decl::TraitDef {
+                name,
+                type_params,
+                constraints: _,
+                items,
+            } => {
                 // Trait name should be 'Show'
                 match name {
                     Ident::CtorIdent(source_ref) => {
@@ -1232,7 +1514,7 @@ mod tests {
                     }
                     _ => panic!("Expected CtorIdent for trait name"),
                 }
-                
+
                 // Should have one type parameter 'a'
                 assert_eq!(type_params.len(), 1);
                 match &type_params[0] {
@@ -1241,18 +1523,16 @@ mod tests {
                     }
                     _ => panic!("Expected VarIdent for type parameter"),
                 }
-                
+
                 // Should have one trait item (show method)
                 assert_eq!(items.len(), 1);
                 match &items[0] {
-                    TraitItem::TypeAnnotation { name, type_expr: _ } => {
-                        match name {
-                            Ident::VarIdent(source_ref) => {
-                                assert_eq!(source_ref.resolve(), "show");
-                            }
-                            _ => panic!("Expected VarIdent for method name"),
+                    TraitItem::TypeAnnotation { name, type_expr: _ } => match name {
+                        Ident::VarIdent(source_ref) => {
+                            assert_eq!(source_ref.resolve(), "show");
                         }
-                    }
+                        _ => panic!("Expected VarIdent for method name"),
+                    },
                     _ => panic!("Expected TypeAnnotation trait item"),
                 }
             }
@@ -1262,18 +1542,25 @@ mod tests {
 
     #[test]
     fn test_parse_impl_definition() {
-        let s_exprs = lex_source(r#"
+        let s_exprs = lex_source(
+            r#"
             (impl Show Bool 
                 (show = 
                     True  "True" 
                     False "False")
                 )
-        "#);
+        "#,
+        );
         let mut ctx = ParseContext::new();
-        
+
         let decl = parse_decl(&mut ctx, &s_exprs[0].get()).unwrap();
         match decl {
-            Decl::ImplDef { trait_name, type_expr, constraints: _, items } => {
+            Decl::ImplDef {
+                trait_name,
+                type_expr,
+                constraints: _,
+                items,
+            } => {
                 // Trait name should be 'Show'
                 assert!(trait_name.is_some());
                 match trait_name.unwrap() {
@@ -1287,10 +1574,13 @@ mod tests {
                         }
                     }
                 }
-                
+
                 // Type should be Bool
                 match type_expr {
-                    TypeExpr::Constructor { ctor: IdentPath(ref idents), args } => {
+                    TypeExpr::Constructor {
+                        ctor: IdentPath(ref idents),
+                        args,
+                    } => {
                         assert_eq!(idents.len(), 1);
                         match &idents[0] {
                             Ident::CtorIdent(source_ref) => {
@@ -1302,7 +1592,7 @@ mod tests {
                     }
                     _ => panic!("Expected Constructor type for Bool"),
                 }
-                
+
                 // Should have implementation items
                 assert_eq!(items.len(), 1);
                 match &items[0] {
@@ -1313,7 +1603,7 @@ mod tests {
                             }
                             _ => panic!("Expected VarIdent for method name"),
                         }
-                        
+
                         // Should have pattern matching rules for True and False
                         assert_eq!(rules.len(), 2);
                     }
@@ -1325,15 +1615,17 @@ mod tests {
 
     #[test]
     fn test_parse_module_definition() {
-        let s_exprs = lex_source(r#"
+        let s_exprs = lex_source(
+            r#"
             (mod my_module 
                 (data MyType 
                     (MyCons Int)
                 )
             )
-        "#);
+        "#,
+        );
         let mut ctx = ParseContext::new();
-        
+
         let decl = parse_decl(&mut ctx, &s_exprs[0].get()).unwrap();
         match decl {
             Decl::ModuleDef { name, items } => {
@@ -1344,18 +1636,16 @@ mod tests {
                     }
                     _ => panic!("Expected VarIdent for module name"),
                 }
-                
+
                 // Should have one item (the data definition)
                 assert_eq!(items.len(), 1);
                 match &items[0] {
-                    Decl::DataDef { name, .. } => {
-                        match name {
-                            Ident::CtorIdent(source_ref) => {
-                                assert_eq!(source_ref.resolve(), "MyType");
-                            }
-                            _ => panic!("Expected CtorIdent for data type name"),
+                    Decl::DataDef { name, .. } => match name {
+                        Ident::CtorIdent(source_ref) => {
+                            assert_eq!(source_ref.resolve(), "MyType");
                         }
-                    }
+                        _ => panic!("Expected CtorIdent for data type name"),
+                    },
                     _ => panic!("Expected DataDef in module"),
                 }
             }
@@ -1375,23 +1665,21 @@ mod tests {
         "#;
         let s_exprs = lex_source(source);
         let mut ctx = ParseContext::new();
-        
+
         let module = parse_module(&mut ctx, &*s_exprs).unwrap();
         assert_eq!(module.declarations.len(), 2);
-        
+
         // First declaration should be type annotation
         match &module.declarations[0] {
-            Decl::TypeAnnotation { name, type_expr: _ } => {
-                match name {
-                    Ident::VarIdent(source_ref) => {
-                        assert_eq!(source_ref.resolve(), "id");
-                    }
-                    _ => panic!("Expected VarIdent for function name"),
+            Decl::TypeAnnotation { name, type_expr: _ } => match name {
+                Ident::VarIdent(source_ref) => {
+                    assert_eq!(source_ref.resolve(), "id");
                 }
-            }
+                _ => panic!("Expected VarIdent for function name"),
+            },
             _ => panic!("Expected TypeAnnotation declaration"),
         }
-        
+
         // Second declaration should be function definition
         match &module.declarations[1] {
             Decl::FunctionDef { name, rules } => {
@@ -1413,14 +1701,16 @@ mod tests {
 
     #[test]
     fn test_parse_pattern_matching_expression() {
-        let s_exprs = lex_source(r#"
+        let s_exprs = lex_source(
+            r#"
             (match x 
                 (Nothing 0) 
                 ((Just y) y)
             )
-        "#);
+        "#,
+        );
         let mut ctx = ParseContext::new();
-        
+
         let expr = parse_expr(&mut ctx, &s_exprs[0].get()).unwrap();
         match expr {
             Expr::Match { expr, arms } => {
@@ -1437,13 +1727,16 @@ mod tests {
                     }
                     _ => panic!("Expected Var for match expression"),
                 }
-                
+
                 // Should have two match arms
                 assert_eq!(arms.len(), 2);
-                
+
                 // First arm: Nothing -> 0
                 match &arms[0].pattern {
-                    Pattern::Constructor { ctor: IdentPath(ref idents), args } => {
+                    Pattern::Constructor {
+                        ctor: IdentPath(ref idents),
+                        args,
+                    } => {
                         assert_eq!(idents.len(), 1);
                         match &idents[0] {
                             Ident::CtorIdent(source_ref) => {
@@ -1456,10 +1749,13 @@ mod tests {
                     _ => panic!("Expected Constructor pattern for Nothing"),
                 }
                 assert_eq!(arms[0].body, Expr::Literal(LiteralExpr::I64(0)));
-                
+
                 // Second arm: (Just y) -> y
                 match &arms[1].pattern {
-                    Pattern::Constructor { ctor: IdentPath(ref idents), args } => {
+                    Pattern::Constructor {
+                        ctor: IdentPath(ref idents),
+                        args,
+                    } => {
                         assert_eq!(idents.len(), 1);
                         match &idents[0] {
                             Ident::CtorIdent(source_ref) => {
@@ -1496,41 +1792,39 @@ mod tests {
 
     #[test]
     fn test_parse_do_notation() {
-        let s_exprs = lex_source(r#"
+        let s_exprs = lex_source(
+            r#"
             (do 
                 (x := get_value) 
                 (pure x))
-        "#);
+        "#,
+        );
         let mut ctx = ParseContext::new();
-        
+
         let expr = parse_expr(&mut ctx, &s_exprs[0].get()).unwrap();
         match expr {
             Expr::Do { stmts } => {
                 assert_eq!(stmts.len(), 2);
-                
+
                 // First statement should be bind
                 match &stmts[0] {
-                    DoStmt::Bind { pattern, expr: _ } => {
-                        match pattern {
-                            Pattern::Var(Ident::VarIdent(source_ref)) => {
-                                assert_eq!(source_ref.resolve(), "x");
-                            }
-                            _ => panic!("Expected Var pattern for bind"),
+                    DoStmt::Bind { pattern, expr: _ } => match pattern {
+                        Pattern::Var(Ident::VarIdent(source_ref)) => {
+                            assert_eq!(source_ref.resolve(), "x");
                         }
-                    }
+                        _ => panic!("Expected Var pattern for bind"),
+                    },
                     _ => panic!("Expected Bind statement"),
                 }
-                
+
                 // Second statement should be expression
                 match &stmts[1] {
-                    DoStmt::Expr(expr) => {
-                        match expr {
-                            Expr::App { func: _, args } => {
-                                assert_eq!(args.len(), 1);
-                            }
-                            _ => panic!("Expected App expression in do"),
+                    DoStmt::Expr(expr) => match expr {
+                        Expr::App { func: _, args } => {
+                            assert_eq!(args.len(), 1);
                         }
-                    }
+                        _ => panic!("Expected App expression in do"),
+                    },
                     _ => panic!("Expected Expr statement"),
                 }
             }
