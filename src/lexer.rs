@@ -33,7 +33,6 @@ pub enum SExpr {
     KindAnnot, // e.g. "kind"
     Mod,       // e.g. "mod"
     Use,       // e.g. "use"
-    Pub,       // e.g. "pub"
     Macro,     // e.g. "macro"
     Do,        // e.g. "do"
 
@@ -623,7 +622,6 @@ impl Lexer {
 
                 "mod" => Ok(RcMut::new(SExpr::Mod)),
                 "use" => Ok(RcMut::new(SExpr::Use)),
-                "pub" => Ok(RcMut::new(SExpr::Pub)),
                 "macro" => Ok(RcMut::new(SExpr::Macro)),
                 "do" => Ok(RcMut::new(SExpr::Do)),
 
@@ -998,7 +996,7 @@ mod tests {
     #[test]
     fn test_parse_atom_keywords() {
         let source =
-            Rc::new("= : := lambda data trait impl type alias kind mod use pub macro do".to_string());
+            Rc::new("= : := lambda data trait impl type alias kind mod use macro do".to_string());
 
         let mut lexer = Lexer::new(source.clone());
         let s_exprs = lexer.parse_s_exprs().unwrap();
@@ -1015,9 +1013,8 @@ mod tests {
         assert_eq!(*s_exprs[9].get(), SExpr::KindAnnot);
         assert_eq!(*s_exprs[10].get(), SExpr::Mod);
         assert_eq!(*s_exprs[11].get(), SExpr::Use);
-        assert_eq!(*s_exprs[12].get(), SExpr::Pub);
-        assert_eq!(*s_exprs[13].get(), SExpr::Macro);
-        assert_eq!(*s_exprs[14].get(), SExpr::Do);
+        assert_eq!(*s_exprs[12].get(), SExpr::Macro);
+        assert_eq!(*s_exprs[13].get(), SExpr::Do);
     }
 
     #[test]
@@ -1154,7 +1151,7 @@ mod tests {
 
     #[test]
     fn test_parse_atom_ident() {
-        let source = Rc::new("Foo bar >>= .some_field".to_string());
+        let source = Rc::new("Foo bar _private_var _PrivateType >>= .some_field".to_string());
 
         let mut lexer = Lexer::new(source.clone());
         let s_exprs = lexer.parse_s_exprs().unwrap();
@@ -1179,6 +1176,24 @@ mod tests {
 
         {
             let s = &*s_exprs[2].get();
+            if let SExpr::VarIdent(var_id) = s {
+                assert_eq!(var_id.0.resolve(), "_private_var");
+            } else {
+                panic!("Expected VarIdent but found {s:?}");
+            }
+        }
+
+        {
+            let s = &*s_exprs[3].get();
+            if let SExpr::VarIdent(var_id) = s {
+                assert_eq!(var_id.0.resolve(), "_PrivateType");
+            } else {
+                panic!("Expected VarIdent but found {s:?}");
+            }
+        }
+
+        {
+            let s = &*s_exprs[4].get();
             if let SExpr::OpIdent(op_id) = s {
                 assert_eq!(op_id.0.resolve(), ">>=");
             } else {
@@ -1187,7 +1202,7 @@ mod tests {
         }
 
         {
-            let s = &*s_exprs[3].get();
+            let s = &*s_exprs[5].get();
             if let SExpr::FieldAccessor(var_id) = s {
                 assert_eq!(var_id.0.resolve(), "some_field");
             } else {

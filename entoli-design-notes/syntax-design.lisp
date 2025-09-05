@@ -577,14 +577,12 @@ False       ; Boolean literal
 ;; ===========================================================
 ;;
 ;; Modules allow grouping definitions and controlling visibility.
-;; `(: some_func ...)` lines indicate publicly exported items.
+;; Items starting with underscore (_) are private to the module.
+;; All other items are publicly exported by default.
 ;; Import syntax can include selective imports, aliases, and nested modules.
 
 (mod database
-  ;; Exported functions
-  (pub Connection connect query)
-
-  ;; Private data type
+  ;; Public data type (no underscore prefix)
   (data Connection
     (Connection 
       (: url    String)
@@ -592,19 +590,25 @@ False       ; Boolean literal
     )
   )
 
+  ;; Public functions (no underscore prefix)
   (: connect (String -> (Result Connection Error)))
-  (= connect url (make_connection url))
+  (= connect url (_make_connection url))
 
   (: query   (Connection -> (String -> (Result Data Error))))
-  (= query conn sql (run_query conn sql))
+  (= query conn sql (_run_query conn sql))
 
-  (: make_connection (String -> (Result Connection Error)))
-  (= make_connection
+  ;; Private helper function (underscore prefix)
+  (: _make_connection (String -> (Result Connection Error)))
+  (= _make_connection
     url (do
       (:= conn (Connection url True))
       (pure conn)
     )
   )
+
+  ;; Private helper function (underscore prefix)  
+  (: _run_query (Connection -> (String -> (Result Data Error))))
+  (= _run_query conn sql hole!)
 )
 
 (use database)                ; This is a Ident
@@ -621,17 +625,19 @@ False       ; Boolean literal
   (use (prelude:: String) 
        (collections:: List))
 
-  (pub trim split)
-  
+  ;; Public functions (no underscore prefix)
   (: trim (String -> String))
-  (= trim s (trim_impl s)) 
+  (= trim s (_trim_impl s)) 
 
   (: split (String -> (String -> '(String))))
-  (= split (s sep) (split_impl s sep))
+  (= split (s sep) (_split_impl s sep))
 
-  ;; Private helper functions
-  (: trim_impl (String -> String))
-  (= trim_impl s hole!)
+  ;; Private helper functions (underscore prefix)
+  (: _trim_impl (String -> String))
+  (= _trim_impl s hole!)
+
+  (: _split_impl (String -> (String -> '(String))))
+  (= _split_impl s sep hole!)
 )
 
 (: process_data (String -> (Result '(Int) Error)))
@@ -644,47 +650,90 @@ False       ; Boolean literal
 )
 
 (mod my_module
-  ;; Public API: only symbols listed here become visible outside.
-  (pub
-    MyType
-    my_func
-  )
-
-  ;; Data definition (private by default)
+  ;; Data definition (public by default)
   (data MyType
     (MyCons Int)
   )
 
   ;; Directly import module from path
-  @(mod some_submodule (Path `("path" "to" "some_submodule")))
-  (use some_submodule)
+  @(mod _some_submodule (Path `("path" "to" "some_submodule")))
+  (use _some_submodule)
   
-  ;; Public function (declared in the export list)
-  (pub my_func)
+  ;; Public function (no underscore prefix)
   (: my_func (Int -> Int))
   (= my_func x (x + 1))
 
-  ;; Private helper (not exported)
-  (: helper (Int -> Int))
-  (= helper x (x * 2))
+  ;; Private helper (underscore prefix)
+  (: _helper (Int -> Int))
+  (= _helper x (x * 2))
 )
 
 ;; Keyword macro should be reserved for future use
 
-;; 
-;; Above is a minimal-yet-comprehensive illustration of this
-;; s-expression language, showing:
-;;   1) literal & composite values
-;;   2) data creation, record updates, and field access
-;;   3) function definitions (simple, generic, constrained)
-;;   4) pattern matching (literal, tuple, list, record, guards)
-;;   5) type and data definitions (including parameterized)
-;;   6) minimal traits & implementations, trait disambiguation
-;;   7) kind annotations
-;;   8) monadic do-notation
-;;   9) module system & various import styles
+;; ===========================================================
+;; PRIVACY EXAMPLES
+;; ===========================================================
 ;;
-;; End of example.
+;; The underscore privacy model applies consistently across:
+;;   - function names
+;;   - data types  
+;;   - constructors
+;;   - fields
+;;   - variables
+;;   - modules
+
+;; Private data type and constructors
+(data _InternalState
+  (_Private Int String)
+  (_Hidden Bool)
+)
+
+;; Public data type with mixed visibility constructors
+(data Result
+  (Ok a)          ;; public constructor
+  (_Pending a)    ;; private constructor - internal state
+)
+
+;; Private trait
+(trait (_InternalShow a)
+  (: _show (a -> String))
+)
+
+;; Public trait with private methods
+(trait (Processor a)
+  (: process (a -> a))           ;; public method
+  (: _validate (a -> Bool))      ;; private method
+  (: _transform (a -> a))        ;; private method
+)
+
+;; Implementation can have private helper methods
+(impl Processor String
+  (= process s (
+    (if (_validate s)
+      (_transform s)
+      s)
+  ))
+
+  (= _validate s (not (empty? s)))
+  (= _transform s (trim s))
+)
+
+;; Record with mixed visibility fields
+(data User
+  (User
+    (: name String)        ;; public field
+    (: email String)       ;; public field  
+    (: _id Int)           ;; private field
+    (: _created_at Time)  ;; private field
+  )
+)
+
+;; Private module
+(mod _internal_utils
+  ;; Everything in a private module is effectively private
+  (: helper_func (Int -> String))
+  (= helper_func n (show n))
+)
 
 ;; ===========================================================
 ;; todo
