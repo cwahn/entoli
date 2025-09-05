@@ -12,6 +12,9 @@ pub struct CtorIdent(pub SourceRef);
 pub struct VarIdent(pub SourceRef);
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct ListIdent(pub SourceRef);
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct OpIdent(pub SourceRef);
 
 #[derive(Debug, Clone, PartialEq)]
@@ -91,6 +94,7 @@ pub enum SExpr {
     CtorIdent(CtorIdent),    // e.g. "SomeType", "AnotherType"
     VarIdent(VarIdent),      // e.g. "x", "y", "z"
     OpIdent(OpIdent),        // e.g. ">>=", "++",
+    ListIdent(ListIdent),    // e.g. "xs.." "ys.."
     FieldAccessor(VarIdent), // e.g. ".some_field", ".another_field" (VarIdent Does not include dot)
 
     IdentPath(Rc<[RcMut<SExpr>]>), // e.g. "some_module::SomeType::>>=", "some_module::.."
@@ -152,16 +156,6 @@ impl Lexer {
         }
     }
 
-    fn err_msg(&self, error_message: &str) -> String {
-        let source_ref = SourceRef::new(self.source.clone(), self.pos, self.pos);
-        source_ref.error(error_message)
-    }
-
-    fn range_err_msg(&self, start_pos: u32, end_pos: u32, error_message: &str) -> String {
-        let source_ref = SourceRef::new(self.source.clone(), start_pos, end_pos);
-        source_ref.error(error_message)
-    }
-
     fn parse_s_exprs(&mut self) -> Result<Rc<[RcMut<SExpr>]>, String> {
         let mut s_exprs = Vec::new();
         self.skip_whitespace_and_comments();
@@ -179,6 +173,16 @@ impl Lexer {
             self.skip_whitespace_and_comments();
         }
         Ok(s_exprs.into())
+    }
+
+    fn err_msg(&self, error_message: &str) -> String {
+        let source_ref = SourceRef::new(self.source.clone(), self.pos, self.pos);
+        source_ref.error(error_message)
+    }
+
+    fn range_err_msg(&self, start_pos: u32, end_pos: u32, error_message: &str) -> String {
+        let source_ref = SourceRef::new(self.source.clone(), start_pos, end_pos);
+        source_ref.error(error_message)
     }
 
     fn parse_s_expr(&mut self) -> Result<RcMut<SExpr>, String> {
@@ -526,12 +530,12 @@ impl Lexer {
 
     fn parse_char_literal(&mut self) -> Result<RcMut<SExpr>, String> {
         self.next(); // consume first '\''
-        
+
         match self.peek() {
             Some(c) => {
                 let char_value = c;
                 self.next(); // consume the character
-                
+
                 match self.peek() {
                     Some('\'') => {
                         self.next(); // consume the closing '\''
@@ -542,13 +546,14 @@ impl Lexer {
                         "While parsing character literal, expected closing ' but found {c}"
                     ))),
                     None => Err(self.err_msg(
-                        "While parsing character literal, expected closing ' but found None"
+                        "While parsing character literal, expected closing ' but found None",
                     )),
                 }
             }
-            None => Err(self.err_msg(
-                "While parsing character literal, expected character but found None"
-            )),
+            None => {
+                Err(self
+                    .err_msg("While parsing character literal, expected character but found None"))
+            }
         }
     }
 
@@ -595,9 +600,7 @@ impl Lexer {
             }
 
             i += 1;
-        }
-
-        let end_pos = self.pos + i;
+        }        let end_pos = self.pos + i;
 
         {
             let s = &self.source[start_pos as usize..end_pos as usize]; // First element should be IdentPath, and the rest should be IdentTree
@@ -856,8 +859,15 @@ impl Lexer {
     }
 
     fn parse_var_ident(&mut self, end_pos: u32) -> Result<RcMut<SExpr>, String> {
+        let s = &self.source[self.pos as usize..end_pos as usize];
+        
+        // Check if this is a ListIdent (ends with "..")
+        if s.len() > 2 && s.ends_with("..") {
+            let source_ref = self.parse_list_ident_impl(end_pos)?;
+            return Ok(RcMut::new(SExpr::ListIdent(ListIdent(source_ref))));
+        }
+        
         let source_ref = self.parse_var_ident_impl(end_pos)?;
-
         Ok(RcMut::new(SExpr::VarIdent(VarIdent(source_ref))))
     }
 
@@ -876,6 +886,36 @@ impl Lexer {
             if !c.is_alphanumeric() && c != '_' {
                 return Err(self.err_msg(&format!(
                     "While parsing var ident, expected alphanumeric or '_' but found {}",
+                    c
+                )));
+            }
+        }
+
+        let start_pos = self.pos;
+        while self.pos < end_pos {
+            self.next();
+        }
+
+        let source_ref = SourceRef::new(self.source.clone(), start_pos, end_pos);
+        Ok(source_ref)
+    }
+
+    fn parse_list_ident_impl(&mut self, end_pos: u32) -> Result<SourceRef, String> {
+        let s = &self.source[self.pos as usize..end_pos as usize];
+
+        // Validate that the identifier part (excluding "..") is valid
+        let var_part = &s[..s.len() - 2]; // Caller has already determined this ends with ".."
+        
+        if var_part.is_empty() {
+            return Err(self.err_msg(
+                "While parsing list ident, expected identifier before '..' but found empty string"
+            ));
+        }
+
+        for c in var_part.chars() {
+            if !c.is_alphanumeric() && c != '_' {
+                return Err(self.err_msg(&format!(
+                    "While parsing list ident, expected alphanumeric or '_' but found {}",
                     c
                 )));
             }
@@ -1207,6 +1247,47 @@ mod tests {
                 assert_eq!(var_id.0.resolve(), "some_field");
             } else {
                 panic!("Expected FieldAccessor but found {s:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn test_parse_list_ident() {
+        let source = Rc::new("xs.. ys.. rest..".to_string());
+
+        let mut lexer = Lexer::new(source.clone());
+        let s_exprs = lexer.parse_s_exprs().unwrap();
+
+        // Should have 3 tokens: each one is a ListIdent
+        assert_eq!(s_exprs.len(), 3);
+
+        // First should be ListIdent "xs.."
+        {
+            let s = &*s_exprs[0].get();
+            if let SExpr::ListIdent(list_id) = s {
+                assert_eq!(list_id.0.resolve(), "xs..");
+            } else {
+                panic!("Expected ListIdent but found {s:?}");
+            }
+        }
+
+        // Second should be ListIdent "ys.."
+        {
+            let s = &*s_exprs[1].get();
+            if let SExpr::ListIdent(list_id) = s {
+                assert_eq!(list_id.0.resolve(), "ys..");
+            } else {
+                panic!("Expected ListIdent but found {s:?}");
+            }
+        }
+
+        // Third should be ListIdent "rest.."
+        {
+            let s = &*s_exprs[2].get();
+            if let SExpr::ListIdent(list_id) = s {
+                assert_eq!(list_id.0.resolve(), "rest..");
+            } else {
+                panic!("Expected ListIdent but found {s:?}");
             }
         }
     }

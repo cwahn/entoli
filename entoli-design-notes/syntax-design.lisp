@@ -670,70 +670,20 @@ False       ; Boolean literal
 
 ;; Keyword macro should be reserved for future use
 
-;; ===========================================================
-;; PRIVACY EXAMPLES
-;; ===========================================================
+;; 
+;; Above is a minimal-yet-comprehensive illustration of this
+;; s-expression language, showing:
+;;   1) literal & composite values
+;;   2) data creation, record updates, and field access
+;;   3) function definitions (simple, generic, constrained)
+;;   4) pattern matching (literal, tuple, list, record, guards)
+;;   5) type and data definitions (including parameterized)
+;;   6) minimal traits & implementations, trait disambiguation
+;;   7) kind annotations
+;;   8) monadic do-notation
+;;   9) module system & various import styles
 ;;
-;; The underscore privacy model applies consistently across:
-;;   - function names
-;;   - data types  
-;;   - constructors
-;;   - fields
-;;   - variables
-;;   - modules
-
-;; Private data type and constructors
-(data _InternalState
-  (_Private Int String)
-  (_Hidden Bool)
-)
-
-;; Public data type with mixed visibility constructors
-(data Result
-  (Ok a)          ;; public constructor
-  (_Pending a)    ;; private constructor - internal state
-)
-
-;; Private trait
-(trait (_InternalShow a)
-  (: _show (a -> String))
-)
-
-;; Public trait with private methods
-(trait (Processor a)
-  (: process (a -> a))           ;; public method
-  (: _validate (a -> Bool))      ;; private method
-  (: _transform (a -> a))        ;; private method
-)
-
-;; Implementation can have private helper methods
-(impl Processor String
-  (= process s (
-    (if (_validate s)
-      (_transform s)
-      s)
-  ))
-
-  (= _validate s (not (empty? s)))
-  (= _transform s (trim s))
-)
-
-;; Record with mixed visibility fields
-(data User
-  (User
-    (: name String)        ;; public field
-    (: email String)       ;; public field  
-    (: _id Int)           ;; private field
-    (: _created_at Time)  ;; private field
-  )
-)
-
-;; Private module
-(mod _internal_utils
-  ;; Everything in a private module is effectively private
-  (: helper_func (Int -> String))
-  (= helper_func n (show n))
-)
+;; End of example.
 
 ;; ===========================================================
 ;; todo
