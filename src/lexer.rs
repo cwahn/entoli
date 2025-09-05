@@ -1056,7 +1056,7 @@ mod tests {
             if let SExpr::String(source_ref) = s {
                 assert_eq!(source_ref.resolve(), "");
             } else {
-                panic!("Expected String but found {:?}", s);
+                panic!("Expected String but found {s:?}");
             }
         }
 
@@ -1065,7 +1065,7 @@ mod tests {
             if let SExpr::String(source_ref) = s {
                 assert_eq!(source_ref.resolve(), "Hello, world!");
             } else {
-                panic!("Expected String but found {:?}", s);
+                panic!("Expected String but found {s:?}");
             }
         }
 
@@ -1074,7 +1074,7 @@ mod tests {
             if let SExpr::String(source_ref) = s {
                 assert_eq!(source_ref.resolve(), "\\\"");
             } else {
-                panic!("Expected String but found {:?}", s);
+                panic!("Expected String but found {s:?}");
             }
         }
 
@@ -1083,7 +1083,7 @@ mod tests {
             if let SExpr::String(source_ref) = s {
                 assert_eq!(source_ref.resolve(), "\\n");
             } else {
-                panic!("Expected String but found {:?}", s);
+                panic!("Expected String but found {s:?}");
             }
         }
     }
@@ -1100,7 +1100,7 @@ mod tests {
             if let SExpr::CtorIdent(var_id) = s {
                 assert_eq!(var_id.0.resolve(), "Foo");
             } else {
-                panic!("Expected CtorIdent but found {:?}", s);
+                panic!("Expected CtorIdent but found {s:?}");
             }
         }
 
@@ -1109,7 +1109,7 @@ mod tests {
             if let SExpr::VarIdent(var_id) = s {
                 assert_eq!(var_id.0.resolve(), "bar");
             } else {
-                panic!("Expected VarIdent but found {:?}", s);
+                panic!("Expected VarIdent but found {s:?}");
             }
         }
 
@@ -1118,7 +1118,7 @@ mod tests {
             if let SExpr::OpIdent(op_id) = s {
                 assert_eq!(op_id.0.resolve(), ">>=");
             } else {
-                panic!("Expected OpIdent but found {:?}", s);
+                panic!("Expected OpIdent but found {s:?}");
             }
         }
 
@@ -1127,7 +1127,7 @@ mod tests {
             if let SExpr::FieldAccessor(var_id) = s {
                 assert_eq!(var_id.0.resolve(), "some_field");
             } else {
-                panic!("Expected FieldAccessor but found {:?}", s);
+                panic!("Expected FieldAccessor but found {s:?}");
             }
         }
     }
@@ -1145,7 +1145,7 @@ mod tests {
                 match &*path[0].get() {
                     SExpr::IdentpathNil => (),
                     _ => {
-                        panic!("Expected IdentpathNil but found {:?}", s);
+                        panic!("Expected IdentpathNil but found {s:?}");
                     }
                 }
 
@@ -1154,11 +1154,11 @@ mod tests {
                         assert_eq!(src_ref.0.resolve(), "foo")
                     }
                     _ => {
-                        panic!("Expected VarIdent but found {:?}", s);
+                        panic!("Expected VarIdent but found {s:?}");
                     }
                 }
             } else {
-                panic!("Expected IdentPath but found {:?}", s);
+                panic!("Expected IdentPath but found {s:?}");
             }
         }
 
@@ -1170,7 +1170,7 @@ mod tests {
                         assert_eq!(src_ref.0.resolve(), "foo")
                     }
                     _ => {
-                        panic!("Expected VarIdent but found {:?}", s);
+                        panic!("Expected VarIdent but found {s:?}");
                     }
                 }
 
@@ -1179,11 +1179,11 @@ mod tests {
                         assert_eq!(src_ref.0.resolve(), "Bar")
                     }
                     _ => {
-                        panic!("Expected CtorIdent but found {:?}", s);
+                        panic!("Expected CtorIdent but found {s:?}");
                     }
                 }
             } else {
-                panic!("Expected IdentPath but found {:?}", s);
+                panic!("Expected IdentPath but found {s:?}");
             }
         }
 
@@ -1195,18 +1195,18 @@ mod tests {
                         assert_eq!(src_ref.0.resolve(), "foo")
                     }
                     _ => {
-                        panic!("Expected VarIdent but found {:?}", s);
+                        panic!("Expected VarIdent but found {s:?}");
                     }
                 }
 
                 match &*path[1].get() {
                     SExpr::IdentpathNil => (),
                     _ => {
-                        panic!("Expected IdentpathNil but found {:?}", s);
+                        panic!("Expected IdentpathNil but found {s:?}");
                     }
                 }
             } else {
-                panic!("Expected IdentPath but found {:?}", s);
+                panic!("Expected IdentPath but found {s:?}");
             }
         }
     }
@@ -1272,21 +1272,19 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn test_parse_hashed_list_too_few() {
         let source = Rc::new("#(0)".to_string());
 
         let mut lexer = Lexer::new(source.clone());
-        lexer.parse_s_exprs().unwrap();
+        assert!(lexer.parse_s_exprs().is_err());
     }
 
     #[test]
-    #[should_panic]
     fn test_parse_hashed_list_too_many() {
         let source = Rc::new("#(0 1 2 3 4 5 6 7 8 9 10 11 12)".to_string());
 
         let mut lexer = Lexer::new(source.clone());
-        lexer.parse_s_exprs().unwrap();
+        assert!(lexer.parse_s_exprs().is_err());
     }
 
     #[test]
@@ -1337,7 +1335,7 @@ mod tests {
                         SExpr::VarIdent(VarIdent(SourceRef::new(source.clone(), 1, 4)))
                     );
                 }
-                _ => panic!("Expected List but found {:?}", s),
+                _ => panic!("Expected List but found {s:?}"),
             }
         }
 
@@ -1399,7 +1397,7 @@ mod tests {
                     assert_eq!(*list[1].get(), SExpr::I64(1));
                     assert_eq!(*list[2].get(), SExpr::I64(2));
                 }
-                _ => panic!("Expected List but found {:?}", s),
+                _ => panic!("Expected List but found {s:?}"),
             }
         }
     }
