@@ -29,9 +29,11 @@ pub enum SExpr {
     Trait,     // e.g. "trait"
     Impl,      // e.g. "impl"
     TypeAlias, // e.g. "type"
+    Alias,     // e.g. "alias"
     KindAnnot, // e.g. "kind"
     Mod,       // e.g. "mod"
     Use,       // e.g. "use"
+    Pub,       // e.g. "pub"
     Macro,     // e.g. "macro"
     Do,        // e.g. "do"
 
@@ -81,6 +83,7 @@ pub enum SExpr {
 
     // Literal data
     Bool(bool),        // e.g. "true", "false"
+    Char(char),        // e.g. "'c'", "'a'"
     I64(i64),          // e.g. "1", "2", "-3"
     F64(f64),          // e.g. "1.0", "2.0", "-3.0"\
     String(SourceRef), // e.g. "\"abc\"", "\"def\""
@@ -216,10 +219,25 @@ impl Lexer {
                     self.next(); // consume '\''
                     Ok(RcMut::new(SExpr::Quote))
                 }
-                _ => Err(self.err_msg(&format!(
-                    "While parsing s-expr, expected '(' or whitespace after ' but found {}",
-                    self.peek_nth(1).unwrap()
-                ))),
+                Some(c) => {
+                    // Check if this is a character literal 'c'
+                    if let Some(third_char) = self.peek_nth(2) {
+                        if third_char == '\'' {
+                            // This is a character literal like 'c'
+                            self.parse_char_literal()
+                        } else {
+                            Err(self.err_msg(&format!(
+                                "While parsing s-expr, expected '(' or whitespace after ' but found {}",
+                                c
+                            )))
+                        }
+                    } else {
+                        Err(self.err_msg(&format!(
+                            "While parsing s-expr, expected '(' or whitespace after ' but found {}",
+                            c
+                        )))
+                    }
+                }
             },
             Some('#') => match self.peek_nth(1) {
                 Some('(') => self.parse_hashed_list(),
@@ -507,6 +525,34 @@ impl Lexer {
         ))
     }
 
+    fn parse_char_literal(&mut self) -> Result<RcMut<SExpr>, String> {
+        self.next(); // consume first '\''
+        
+        match self.peek() {
+            Some(c) => {
+                let char_value = c;
+                self.next(); // consume the character
+                
+                match self.peek() {
+                    Some('\'') => {
+                        self.next(); // consume the closing '\''
+                        self.skip_whitespace_and_comments();
+                        Ok(RcMut::new(SExpr::Char(char_value)))
+                    }
+                    Some(c) => Err(self.err_msg(&format!(
+                        "While parsing character literal, expected closing ' but found {c}"
+                    ))),
+                    None => Err(self.err_msg(
+                        "While parsing character literal, expected closing ' but found None"
+                    )),
+                }
+            }
+            None => Err(self.err_msg(
+                "While parsing character literal, expected character but found None"
+            )),
+        }
+    }
+
     fn parse_ident_path(&mut self, mut acc: Vec<RcMut<SExpr>>) -> Result<RcMut<SExpr>, String> {
         while self.is_path_delimiter() {
             self.next(); // consume ':'
@@ -572,10 +618,12 @@ impl Lexer {
                 "trait" => Ok(RcMut::new(SExpr::Trait)),
                 "impl" => Ok(RcMut::new(SExpr::Impl)),
                 "type" => Ok(RcMut::new(SExpr::TypeAlias)),
+                "alias" => Ok(RcMut::new(SExpr::Alias)),
                 "kind" => Ok(RcMut::new(SExpr::KindAnnot)),
 
                 "mod" => Ok(RcMut::new(SExpr::Mod)),
                 "use" => Ok(RcMut::new(SExpr::Use)),
+                "pub" => Ok(RcMut::new(SExpr::Pub)),
                 "macro" => Ok(RcMut::new(SExpr::Macro)),
                 "do" => Ok(RcMut::new(SExpr::Do)),
 
@@ -950,7 +998,7 @@ mod tests {
     #[test]
     fn test_parse_atom_keywords() {
         let source =
-            Rc::new("= : := lambda data trait impl type kind mod use macro do".to_string());
+            Rc::new("= : := lambda data trait impl type alias kind mod use pub macro do".to_string());
 
         let mut lexer = Lexer::new(source.clone());
         let s_exprs = lexer.parse_s_exprs().unwrap();
@@ -963,11 +1011,13 @@ mod tests {
         assert_eq!(*s_exprs[5].get(), SExpr::Trait);
         assert_eq!(*s_exprs[6].get(), SExpr::Impl);
         assert_eq!(*s_exprs[7].get(), SExpr::TypeAlias);
-        assert_eq!(*s_exprs[8].get(), SExpr::KindAnnot);
-        assert_eq!(*s_exprs[9].get(), SExpr::Mod);
-        assert_eq!(*s_exprs[10].get(), SExpr::Use);
-        assert_eq!(*s_exprs[11].get(), SExpr::Macro);
-        assert_eq!(*s_exprs[12].get(), SExpr::Do);
+        assert_eq!(*s_exprs[8].get(), SExpr::Alias);
+        assert_eq!(*s_exprs[9].get(), SExpr::KindAnnot);
+        assert_eq!(*s_exprs[10].get(), SExpr::Mod);
+        assert_eq!(*s_exprs[11].get(), SExpr::Use);
+        assert_eq!(*s_exprs[12].get(), SExpr::Pub);
+        assert_eq!(*s_exprs[13].get(), SExpr::Macro);
+        assert_eq!(*s_exprs[14].get(), SExpr::Do);
     }
 
     #[test]
@@ -1042,6 +1092,20 @@ mod tests {
         assert_eq!(*s_exprs[2].get(), SExpr::I64(0));
         assert_eq!(*s_exprs[3].get(), SExpr::I64(42));
         assert_eq!(*s_exprs[4].get(), SExpr::F64(-9.8));
+    }
+
+    #[test]
+    fn test_parse_char_literals() {
+        let source = Rc::new("'a' 'b' 'Z' '1' '!'".to_string());
+
+        let mut lexer = Lexer::new(source.clone());
+        let s_exprs = lexer.parse_s_exprs().unwrap();
+
+        assert_eq!(*s_exprs[0].get(), SExpr::Char('a'));
+        assert_eq!(*s_exprs[1].get(), SExpr::Char('b'));
+        assert_eq!(*s_exprs[2].get(), SExpr::Char('Z'));
+        assert_eq!(*s_exprs[3].get(), SExpr::Char('1'));
+        assert_eq!(*s_exprs[4].get(), SExpr::Char('!'));
     }
 
     #[test]
