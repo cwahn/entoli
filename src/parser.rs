@@ -1,3 +1,4 @@
+use std::rc::Rc;
 use crate::{
     base::RcMut,
     lexer::SExpr,
@@ -156,6 +157,9 @@ pub enum DoStmt {
 pub enum Pattern {
     // Variable binding
     Var(Ident),
+    
+    // List variable binding (like xs..)
+    ListVar(Ident),
     
     // Literal pattern
     Literal(LiteralExpr),
@@ -412,21 +416,146 @@ pub fn parse_decl(_ctx: &mut ParseContext, _s_expr: &SExpr) -> Result<Decl, Stri
 }
 
 // Parse an expression from an S-expression
-pub fn parse_expr(_ctx: &mut ParseContext, _s_expr: &SExpr) -> Result<Expr, String> {
-    // TODO: Implement parsing logic
-    unimplemented!("parse_expr not implemented yet")
+pub fn parse_expr(_ctx: &mut ParseContext, s_expr: &SExpr) -> Result<Expr, String> {
+    match s_expr {
+        // Literal values
+        SExpr::I64(value) => Ok(Expr::Literal(LiteralExpr::I64(*value))),
+        SExpr::F64(value) => Ok(Expr::Literal(LiteralExpr::F64(*value))),
+        SExpr::Bool(value) => Ok(Expr::Literal(LiteralExpr::Bool(*value))),
+        SExpr::Char(value) => Ok(Expr::Literal(LiteralExpr::Char(*value))),
+        SExpr::String(source_ref) => Ok(Expr::Literal(LiteralExpr::String(source_ref.resolve().to_string()))),
+        SExpr::Unit => Ok(Expr::Literal(LiteralExpr::Unit)),
+        
+        // Variable identifiers
+        SExpr::VarIdent(var_ident) => {
+            let ident_path = IdentPath(vec![Ident::VarIdent(var_ident.0.clone())]);
+            Ok(Expr::Var(ident_path))
+        },
+        SExpr::CtorIdent(ctor_ident) => {
+            // Special case for boolean literals
+            let content = ctor_ident.0.resolve();
+            match content {
+                "True" => Ok(Expr::Literal(LiteralExpr::Bool(true))),
+                "False" => Ok(Expr::Literal(LiteralExpr::Bool(false))),
+                _ => {
+                    let ident_path = IdentPath(vec![Ident::CtorIdent(ctor_ident.0.clone())]);
+                    Ok(Expr::Var(ident_path))
+                }
+            }
+        },
+        
+        _ => {
+            unimplemented!("parse_expr for {:?} not implemented yet", s_expr)
+        }
+    }
 }
 
 // Parse a pattern from an S-expression
-pub fn parse_pattern(_ctx: &mut ParseContext, _s_expr: &SExpr) -> Result<Pattern, String> {
-    // TODO: Implement parsing logic
-    unimplemented!("parse_pattern not implemented yet")
+pub fn parse_pattern(_ctx: &mut ParseContext, s_expr: &SExpr) -> Result<Pattern, String> {
+    match s_expr {
+        // Literal patterns
+        SExpr::I64(value) => Ok(Pattern::Literal(LiteralExpr::I64(*value))),
+        SExpr::F64(value) => Ok(Pattern::Literal(LiteralExpr::F64(*value))),
+        SExpr::Bool(value) => Ok(Pattern::Literal(LiteralExpr::Bool(*value))),
+        SExpr::Char(value) => Ok(Pattern::Literal(LiteralExpr::Char(*value))),
+        SExpr::String(source_ref) => Ok(Pattern::Literal(LiteralExpr::String(source_ref.resolve().to_string()))),
+        SExpr::Unit => Ok(Pattern::Literal(LiteralExpr::Unit)),
+        
+        // Wildcard pattern
+        SExpr::Wildcard => Ok(Pattern::Wildcard),
+        
+        // Variable patterns
+        SExpr::VarIdent(var_ident) => Ok(Pattern::Var(Ident::VarIdent(var_ident.0.clone()))),
+        
+        // List variable patterns (like xs..)
+        SExpr::ListIdent(list_ident) => Ok(Pattern::ListVar(Ident::VarIdent(list_ident.0.clone()))),
+        
+        // Constructor patterns (without args)
+        SExpr::CtorIdent(ctor_ident) => {
+            let ident_path = IdentPath(vec![Ident::CtorIdent(ctor_ident.0.clone())]);
+            Ok(Pattern::Constructor {
+                ctor: ident_path,
+                args: vec![],
+            })
+        },
+        
+        _ => {
+            unimplemented!("parse_pattern for {:?} not implemented yet", s_expr)
+        }
+    }
 }
 
 // Parse a type expression from an S-expression
-pub fn parse_type_expr(_ctx: &mut ParseContext, _s_expr: &SExpr) -> Result<TypeExpr, String> {
-    // TODO: Implement parsing logic
-    unimplemented!("parse_type_expr not implemented yet")
+pub fn parse_type_expr(_ctx: &mut ParseContext, s_expr: &SExpr) -> Result<TypeExpr, String> {
+    match s_expr {
+        // Type variables (lowercase identifiers)
+        SExpr::VarIdent(var_ident) => Ok(TypeExpr::Var(Ident::VarIdent(var_ident.0.clone()))),
+        
+        // Type constructors (uppercase identifiers)
+        SExpr::CtorIdent(ctor_ident) => {
+            let ident_path = IdentPath(vec![Ident::CtorIdent(ctor_ident.0.clone())]);
+            Ok(TypeExpr::Constructor {
+                ctor: ident_path,
+                args: vec![],
+            })
+        },
+        
+        // Built-in types - create dummy source refs for now
+        SExpr::I64Type => {
+            let dummy_source = Rc::new("i64".to_string());
+            let ident_path = IdentPath(vec![Ident::CtorIdent(
+                crate::source_ref::SourceRef::new(dummy_source, 0, 3)
+            )]);
+            Ok(TypeExpr::Constructor {
+                ctor: ident_path,
+                args: vec![],
+            })
+        },
+        SExpr::F64Type => {
+            let dummy_source = Rc::new("f64".to_string());
+            let ident_path = IdentPath(vec![Ident::CtorIdent(
+                crate::source_ref::SourceRef::new(dummy_source, 0, 3)
+            )]);
+            Ok(TypeExpr::Constructor {
+                ctor: ident_path,
+                args: vec![],
+            })
+        },
+        SExpr::BoolType => {
+            let dummy_source = Rc::new("bool".to_string());
+            let ident_path = IdentPath(vec![Ident::CtorIdent(
+                crate::source_ref::SourceRef::new(dummy_source, 0, 4)
+            )]);
+            Ok(TypeExpr::Constructor {
+                ctor: ident_path,
+                args: vec![],
+            })
+        },
+        SExpr::StrType => {
+            let dummy_source = Rc::new("str".to_string());
+            let ident_path = IdentPath(vec![Ident::CtorIdent(
+                crate::source_ref::SourceRef::new(dummy_source, 0, 3)
+            )]);
+            Ok(TypeExpr::Constructor {
+                ctor: ident_path,
+                args: vec![],
+            })
+        },
+        SExpr::Unit => {
+            let dummy_source = Rc::new("()".to_string());
+            let ident_path = IdentPath(vec![Ident::CtorIdent(
+                crate::source_ref::SourceRef::new(dummy_source, 0, 2)
+            )]);
+            Ok(TypeExpr::Constructor {
+                ctor: ident_path,
+                args: vec![],
+            })
+        },
+        
+        _ => {
+            unimplemented!("parse_type_expr for {:?} not implemented yet", s_expr)
+        }
+    }
 }
 
 #[cfg(test)]
@@ -838,6 +967,20 @@ mod tests {
                 }
             }
             _ => panic!("Expected List pattern"),
+        }
+    }
+
+    #[test]
+    fn test_parse_list_variable_pattern() {
+        let s_exprs = lex_source(r#"xs.."#);
+        let mut ctx = ParseContext::new();
+        
+        let pattern = parse_pattern(&mut ctx, &s_exprs[0].get()).unwrap();
+        match pattern {
+            Pattern::ListVar(Ident::VarIdent(source_ref)) => {
+                assert_eq!(source_ref.resolve(), "xs..");
+            }
+            _ => panic!("Expected ListVar pattern"),
         }
     }
 
