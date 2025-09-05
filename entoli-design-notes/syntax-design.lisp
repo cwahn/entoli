@@ -33,14 +33,13 @@ False       ; Boolean literal
 ;; BASIC SPO USAGE
 ;; ===========================================================
 
-;; Standard S-expression form (prefix notation)
-(: + (-> Int (-> Int Int))) 
-(+ 3 4)                       
-(+ 3 4)                       
+;; Standard S-expression form (when SPO needs to be disabled)
+((+) : (Int -> (Int -> Int))) ; Parentheses prevent SPO desugaring 
+((+) 3 4)                     ; Explicit prefix notation (SPO disabled)
 
-;; Using SPO (more intuitive infix-like syntax)
-((+) : (Int -> (Int -> Int))) ; Parentheses are required to prevent SPO desugaring, type expr desugars to: (-> Int (-> Int Int))
-(3 + 4)                       ; Desugars to: (+ 3 4)
+;; Using SPO (default syntax, more intuitive)
+(+ : (Int -> (Int -> Int)))   ; Type annotation for + operator, type expr desugars to: (-> Int (-> Int Int))
+(3 + 4)                       ; Default SPO syntax, desugars to: (+ 3 4)
 (x * y)                       ; Desugars to: (* x y)
 
 ;; SPO with complex expressions

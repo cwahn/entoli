@@ -953,7 +953,7 @@ mod tests {
     #[test]
     fn test_parse_type_annotation() {
         let s_exprs = lex_source(r#"
-            (: add (Int -> (Int -> Int)))
+            (add : (Int -> (Int -> Int)))
         "#);
         let mut ctx = ParseContext::new();
         
@@ -974,7 +974,7 @@ mod tests {
     #[test]
     fn test_parse_simple_function_definition() {
         let s_exprs = lex_source(r#"
-            (= add (x y) 
+            (add = (x y) 
                 (x + y))
         "#);
         let mut ctx = ParseContext::new();
@@ -1077,7 +1077,7 @@ mod tests {
     fn test_parse_trait_definition() {
         let s_exprs = lex_source(r#"
             (trait (Show a) 
-                (: show (a -> String)))
+                (show : (a -> String)))
         "#);
         let mut ctx = ParseContext::new();
         
@@ -1123,7 +1123,7 @@ mod tests {
     fn test_parse_impl_definition() {
         let s_exprs = lex_source(r#"
             (impl Show Bool 
-                (= show 
+                (show = 
                     True  "True" 
                     False "False"))
         "#);
@@ -1226,8 +1226,8 @@ mod tests {
     #[test]
     fn test_parse_simple_module() {
         let source = r#"
-            (: id (a -> a))
-            (= id x x)
+            (id : (a -> a))
+            (id = x x)
         "#;
         let s_exprs = lex_source(source);
         let mut ctx = ParseContext::new();
@@ -1353,7 +1353,7 @@ mod tests {
     fn test_parse_do_notation() {
         let s_exprs = lex_source(r#"
             (do 
-                (:= x get_value) 
+                (x := get_value) 
                 (pure x))
         "#);
         let mut ctx = ParseContext::new();
