@@ -102,19 +102,6 @@ pub enum Expr {
         expr: Box<Expr>,
         type_expr: TypeExpr,
     },
-
-    // Field access
-    FieldAccess {
-        object: Box<Expr>,
-        field: Ident,
-    },
-
-    // Method call
-    MethodCall {
-        object: Box<Expr>,
-        method: Ident,
-        args: Vec<Expr>,
-    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -402,6 +389,31 @@ pub fn parse_decl(_ctx: &mut ParseContext, _s_expr: &SExpr) -> Result<Decl, Stri
     unimplemented!("parse_decl not implemented yet")
 }
 
+// Parse a do statement from an S-expression
+pub fn parse_do_stmt(_ctx: &mut ParseContext, s_expr: &SExpr) -> Result<DoStmt, String> {
+    match s_expr {
+        // List forms: either binding or expression
+        SExpr::List(elements) => {
+            if elements.len() == 3 {
+                // Check if it's a binding in SPO form (:= pattern expr)
+                if let SExpr::DoBinding = &*elements[0].get() {
+                    let pattern = parse_pattern(_ctx, &elements[1].get())?;
+                    let expr = parse_expr(_ctx, &elements[2].get())?;
+                    return Ok(DoStmt::Bind { pattern, expr });
+                }
+            }
+            // Regular expression statement
+            let expr = parse_expr(_ctx, s_expr)?;
+            Ok(DoStmt::Expr(expr))
+        }
+        _ => {
+            // Single expression statement
+            let expr = parse_expr(_ctx, s_expr)?;
+            Ok(DoStmt::Expr(expr))
+        }
+    }
+}
+
 // Parse an expression from an S-expression
 pub fn parse_expr(_ctx: &mut ParseContext, s_expr: &SExpr) -> Result<Expr, String> {
     match s_expr {
@@ -431,6 +443,32 @@ pub fn parse_expr(_ctx: &mut ParseContext, s_expr: &SExpr) -> Result<Expr, Strin
                     Ok(Expr::Var(ident_path))
                 }
             }
+        }
+        
+        // Arithmetic and other operators
+        SExpr::Add | SExpr::Sub | SExpr::Asterisk | SExpr::Div | SExpr::Modulus |
+        SExpr::Eq | SExpr::Ne | SExpr::Lt | SExpr::Le | SExpr::Gt | SExpr::Ge |
+        SExpr::And | SExpr::Or | SExpr::Not => {
+            // Convert operators to their proper Ident variants
+            let ident = match s_expr {
+                SExpr::Add => Ident::Add,
+                SExpr::Sub => Ident::Sub,
+                SExpr::Asterisk => Ident::Mul,
+                SExpr::Div => Ident::Div,
+                SExpr::Modulus => Ident::Modulus,
+                SExpr::Eq => Ident::Eq,
+                SExpr::Ne => Ident::Ne,
+                SExpr::Lt => Ident::Lt,
+                SExpr::Le => Ident::Le,
+                SExpr::Gt => Ident::Gt,
+                SExpr::Ge => Ident::Ge,
+                SExpr::And => Ident::And,
+                SExpr::Or => Ident::Or,
+                SExpr::Not => Ident::Not,
+                _ => unreachable!(),
+            };
+            let ident_path = IdentPath(vec![ident]);
+            Ok(Expr::Var(ident_path))
         }
         
         // List expressions - function applications, special forms, etc.
@@ -517,27 +555,8 @@ pub fn parse_expr(_ctx: &mut ParseContext, s_expr: &SExpr) -> Result<Expr, Strin
                     let mut stmts = Vec::new();
                     
                     for i in 1..elements.len() {
-                        match &*elements[i].get() {
-                            SExpr::List(stmt_elements) => {
-                                if stmt_elements.len() >= 3 {
-                                    // Check if it's a binding (pattern := expr)
-                                    if let SExpr::DoBinding = &*stmt_elements[1].get() {
-                                        let pattern = parse_pattern(_ctx, &stmt_elements[0].get())?;
-                                        let expr = parse_expr(_ctx, &stmt_elements[2].get())?;
-                                        stmts.push(DoStmt::Bind { pattern, expr });
-                                        continue;
-                                    }
-                                }
-                                // Regular expression statement
-                                let expr = parse_expr(_ctx, &elements[i].get())?;
-                                stmts.push(DoStmt::Expr(expr));
-                            }
-                            _ => {
-                                // Single expression statement
-                                let expr = parse_expr(_ctx, &elements[i].get())?;
-                                stmts.push(DoStmt::Expr(expr));
-                            }
-                        }
+                        let stmt = parse_do_stmt(_ctx, &elements[i].get())?;
+                        stmts.push(stmt);
                     }
                     
                     Ok(Expr::Do { stmts })
@@ -577,6 +596,10 @@ pub fn parse_expr(_ctx: &mut ParseContext, s_expr: &SExpr) -> Result<Expr, Strin
                 list_elements.push(parse_expr(_ctx, &element.get())?);
             }
             Ok(Expr::Literal(LiteralExpr::List(list_elements)))
+        }
+
+        SExpr::DoBinding => {
+            Err("DoBinding (:=) should only appear inside do blocks".to_string())
         }
 
         _ => {
@@ -663,9 +686,9 @@ pub fn parse_pattern(_ctx: &mut ParseContext, s_expr: &SExpr) -> Result<Pattern,
             
             for element in elements.iter() {
                 match &*element.get() {
-                    SExpr::ListIdent(_) => {
-                        // This is the rest pattern (xs..)
-                        rest = Some(Box::new(parse_pattern(_ctx, &element.get())?));
+                    SExpr::ListIdent(list_ident) => {
+                        // This is a rest pattern (like xs..)
+                        rest = Some(Box::new(Pattern::ListVar(Ident::VarIdent(list_ident.0.clone()))));
                         break;
                     }
                     _ => {
@@ -1208,6 +1231,7 @@ mod tests {
         let mut ctx = ParseContext::new();
 
         let pattern = parse_pattern(&mut ctx, &s_exprs[0].get()).unwrap();
+        
         match pattern {
             Pattern::List { elements, rest } => {
                 // Should have one element 'x'
@@ -1219,13 +1243,15 @@ mod tests {
                     _ => panic!("Expected Var pattern for list element"),
                 }
 
-                // Should have rest pattern 'xs'
+                // Should have rest pattern 'xs..' as ListVar
                 assert!(rest.is_some());
                 match rest.as_ref().unwrap().as_ref() {
-                    Pattern::Var(Ident::VarIdent(source_ref)) => {
-                        assert_eq!(source_ref.resolve(), "xs");
+                    Pattern::ListVar(Ident::VarIdent(source_ref)) => {
+                        assert_eq!(source_ref.resolve(), "xs..");
                     }
-                    _ => panic!("Expected Var pattern for rest"),
+                    other => {
+                        panic!("Expected ListVar pattern for rest, got: {:?}", other);
+                    }
                 }
             }
             _ => panic!("Expected List pattern"),
