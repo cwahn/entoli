@@ -39,7 +39,7 @@ False       ; Boolean literal
 (+ 3 4)                       
 
 ;; Using SPO (more intuitive infix-like syntax)
-(: (+) (Int -> (Int -> Int))) ; Parentheses are required to prevent SPO desugaring, type expr desugars to: (-> Int (-> Int Int))
+((+) : (Int -> (Int -> Int))) ; Parentheses are required to prevent SPO desugaring, type expr desugars to: (-> Int (-> Int Int))
 (3 + 4)                       ; Desugars to: (+ 3 4)
 (x * y)                       ; Desugars to: (* x y)
 
@@ -62,26 +62,35 @@ False       ; Boolean literal
 (lambda x x)            ; Lambda function
 (lambda (x y) (x + y))
 
-;; Kind annotation might work for all the known 
+;; Lambda with pattern
+(lambda
+  (Just _) True
+  _        False
+)
 
+;; Lambda with De-Bruijn index
+(lambda _0)        ; Equivalent to (lambda x x)
+(lambda (_1 + _0)) ; Equivalent to (lambda (x y) (+ y x))
+
+;; Kind annotation might work for all the known 
 
 ;; ===========================================================
 ;; FUNCTION DEFINITIONS
 ;; ===========================================================
 
 ;; Simple function
-(: add (Int -> (Int -> Int))) ; Airity of add is 2
-(= add (x y) (x + y))         ; Parse pattern as binary pattern list
+(add : (Int -> (Int -> Int))) ; Airity of add is 2
+(add = (x y) (x + y))         ; Parse pattern as binary pattern list
 
 ;; Generic function (universal quantification)
-(: id_fn (a -> a)) ; Airity of id_fn is 1
-(= id_fn x x)      ; Parse pattern as unary pattern list
+(id_fn : (a -> a)) ; Airity of id_fn is 1
+(id_fn = x x)      ; Parse pattern as unary pattern list
 
 ;; Generic function with a constraint
-(: show_twice (a -> String) 
+(show_twice : (a -> String) 
   (where (Show a))
 )
-(= show_twice x (string-append (show x) (show x)))
+(show_twice = x (string-append (show x) (show x)))
 
 
 ;; ===========================================================
@@ -89,27 +98,27 @@ False       ; Boolean literal
 ;; ===========================================================
 
 ;; Literal pattern
-(: is_42 (Int -> Bool))
-(= is_42
+(is_42 : (Int -> Bool))
+(is_42 =
   42 True
   _  False
 )
 
 ;; Tuple pattern
-(: add_pair (#(Int Int) -> Int))
-(= add_pair
+(add_pair : (#(Int Int) -> Int))
+(add_pair =
   #(a b) (a + b)        ; Desugars to: (#2 a b), where type of a and b is Int
 )
 
 ;; List pattern
-(: sum_list ('(Int) -> Int))
-(= sum_list
+(sum_list : ('(Int) -> Int))
+(sum_list =
   '()     0
   '(x xs) (x + (sum_list xs))
 )
 
-(: mb_first_two ('(Int) -> (Maybe '(Int))))
-(= mb_first_two
+(mb_first_two : ('(Int) -> (Maybe '(Int))))
+(mb_first_two =
   '()        Nothing               ; Desugars to Nil
   '(x)       '(x)                  ; Desugars to (' x Nil), where type of x is Int
   '(x y)     (Just '(x y))         ; Desugars to (' x (' y Nil)), where type of x and y is Int 
@@ -117,43 +126,43 @@ False       ; Boolean literal
 )
 
 ;; Complex nested list pattern
-(: sum_nested ('('(Int)) -> Int))
-(= sum_nested
+(sum_nested : ('('(Int)) -> Int))
+(sum_nested =
   '()       0
   '(xs xss..) ((sum_list xs) + (sum_nested xss))
 )
 
 ;; ? Complex nested list pattern
-(: sum_nested2 ('('(Int)) -> Int))
-(= sum_nested2
+(sum_nested2 : ('('(Int)) -> Int))
+(sum_nested2 =
   '()         0
   '(xs xss..) ((sum_list2 xs) + (sum_nested2 xss))
 )
 
 ;; Nullary vs. unary constructor pattern (exhaustive)
-(: is_true (Bool -> String))
-(= is_true
+(is_true : (Bool -> String))
+(is_true =
   True  "It's true"
   False "It's false"  ; parentheses optional for a unary constructor
 )
 
-(: is_just ((Maybe a) -> Bool))
-(= is_just
+(is_just : ((Maybe a) -> Bool))
+(is_just =
   (Just _) True
   _        False
 )
 
 ;; Nested pattern
-(: process_nested ((Maybe '(Int)) -> Int))
-(= process_nested
+(process_nested : ((Maybe '(Int)) -> Int))
+(process_nested =
   (Just '(x _)) x
   _             0
 )
 
 ;; match expression inside function
-(: process_user_data ((User '(Int)) -> Int))
-(= process_user_data
-  (User (= d data) ..) (match d
+(process_user_data : ((User '(Int)) -> Int))
+(process_user_data =
+  (User (d = data) ..) (match d
     '(x _) x
     '()    0
   )
@@ -226,9 +235,9 @@ False       ; Boolean literal
 
 (data Person
   (Person
-    (: name String)
-    (: age  Int)
-    (: email String)
+    (name : String)
+    (age :  Int)
+    (email : String)
   )
 )
 
@@ -237,22 +246,22 @@ False       ; Boolean literal
   (S Nat)
 )
 
-(: is_two (Nat -> Bool))
-(= is_two 
+(is_two : (Nat -> Bool))
+(is_two = 
   (S (S Z)) True
   _         False
 )
 
-(: add (Nat -> (Nat -> Nat)))
-(= add
+(add : (Nat -> (Nat -> Nat)))
+(add =
   (Z x)     x
   ((S x) y) (S (add x y))
 )
 
 ;; ? Data with associated function
 (impl Shape 
-  (: area (Shape -> Float))
-  (= area
+  (area : (Shape -> Float))
+  (area =
     (Circle r)      (3.14159 * (r * r))
     (Rectangle w h) (w * h)
     _               0.0
@@ -260,8 +269,8 @@ False       ; Boolean literal
 )
 
 (impl Shape 
-  (: area (Shape -> Float))
-  (= area
+  (area : (Shape -> Float))
+  (area =
     (Circle r)      (3.14159 * (r * r))
     (Rectangle w h) (w * h)
     _               0.0
@@ -269,8 +278,8 @@ False       ; Boolean literal
 )
 
 ;; ? Calling associated function
-(: shape_area (Shape -> (Io ())))
-(= shape_area
+(shape_area : (Shape -> (Io ())))
+(shape_area =
   shape (do
     (print (shape .(area)))
     ;; Desugared: 
@@ -283,15 +292,15 @@ False       ; Boolean literal
   (Err e)
 )
 
-(: update_email (Person -> (String -> Person)))
-(= update_email
+(update_email : (Person -> (String -> Person)))
+(update_email =
   person email (
     (Person email person..)
-    ;; (Person (= email email) person..)
+    ;; (Person (email = email) person..)
     ;; (Person 
-    ;;   (= name (person .name)) 
-    ;;   (= age (person .age)) 
-    ;;   (= email email)
+    ;;   (name = (person .name)) 
+    ;;   (age = (person .age)) 
+    ;;   (email = email)
     ;;  )
   )
 )
@@ -332,7 +341,7 @@ False       ; Boolean literal
 ;; Therefore, try to parse whole list as a unary pattern list.
 
 
-(: Wrapper ((* -> *) -> *))
+(Wrapper : ((* -> *) -> *))
 (data (Wrapper f)
   (Wrapper (f Int))
 )
@@ -356,38 +365,38 @@ False       ; Boolean literal
 ;;   (((obj .(method1)) .field2) .(method2 arg))
 
 ;; Field access examples
-(: get_name (Person -> String))
-(= get_name
+(get_name : (Person -> String))
+(get_name =
   person (person .name)  ;; Desugars to (.name person)
 )
 
 ;; Multiple field access
-(: format_contact (Person -> String))
-(= format_contact
+(format_contact : (Person -> String))
+(format_contact =
   person (concat '("Name: " (person .name) "Email: " (person .email)))
 )
 
 ;; Nested record field access
-(: get_city (User -> String))
-(= get_city
+(get_city : (User -> String))
+(get_city =
   user ((user .address) .city)  ;; Desugars to (.city (.address user))
 )
 
 ;; Method call followed by field access
-(: get_updated_age (Person -> Int))
-(= get_updated_age
+(get_updated_age : (Person -> Int))
+(get_updated_age =
   person ((person .(celebrate_birthday)) .age)
   ;; Desugars to: (.age (celebrate_birthday person))
 )
 
 ;; Complex chain with multiple methods and fields
-(: process_users ('(User) -> Report))
-(= process_users
+(process_users : ('(User) -> Report))
+(process_users =
   users (users
     .(filter is_male)
     .(sort (lambda u (
-      (= profile (u .profile))
-      (= avg_visit_period ((profile .membered_for) / (profile .visit_count)))
+      (profile = (u .profile))
+      (avg_visit_period = ((profile .membered_for) / (profile .visit_count)))
       (avg_visit_period * 0.5)
       ;; Disugared to (* avg_visit_period 0.5)
     )))
@@ -404,8 +413,8 @@ False       ; Boolean literal
   ;;       (sort
   ;;       (filter users is_male)
   ;;       (lambda u (
-  ;;         (= profile (.profile u))
-  ;;         (= avg_visit_period (/ (.membered_for profile) (.visit_count profile)))
+  ;;         (profile = (.profile u))
+  ;;         (avg_visit_period = (/ (.membered_for profile) (.visit_count profile)))
   ;;         (* avg_visit_period 0.5)
   ;;       )))
   ;;       10)
@@ -432,31 +441,31 @@ False       ; Boolean literal
 
 ;; Nullary trait example: no type parameters
 (trait Singleton
-  (: unique_instance Singleton)
+  (unique_instance : Singleton)
 )
 
 ;; Unary trait example
 (trait (Show a)
-  (: show (a -> String))
+  (show : (a -> String))
 )
 
 ;; Binary trait example
 (trait (Convertible a b)
-  (: convert (a -> b))
+  (convert : (a -> b))
 )
 
 
 ;; Functor trait example
 (trait (Functor f)
-  (: map ((f a) -> ((a -> b) -> (f b))))
+  (map : ((f a) -> ((a -> b) -> (f b))))
 )
 
 ;; Applicative trait example
 (trait (Applicative f)
   (where (Functor f))
 
-  (: pure (a -> (f a)))
-  (: ap ((f a) -> ((f (a -> b)) -> (f b))))
+  (pure : (a -> (f a)))
+  (ap : ((f a) -> ((f (a -> b)) -> (f b))))
 )
 
 
@@ -464,12 +473,12 @@ False       ; Boolean literal
 (trait (Monad m)
   (where (Applicative m))
 
-  (: (>>=) ((m a) -> ((a -> (m b)) -> (m b)))) ; Expressed as := in do-notation
+  ((>>=) : ((m a) -> ((a -> (m b)) -> (m b)))) ; Expressed as := in do-notation
 )
 
 ;; Simple implementation for a concrete type
 (impl Show Bool
-  (= show
+  (show =
     True  "True"
     False "False"
   )
@@ -479,7 +488,7 @@ False       ; Boolean literal
 (impl Show (Maybe a)
   (where (Show a))
 
-  (= show
+  (show =
     Nothing  "Nothing"
     (Just x) (string-append "Just " (show x))
   )
@@ -488,7 +497,7 @@ False       ; Boolean literal
 ;; Special implementation for a specific type
 (impl Show (Maybe Int)
 
-  (= show
+  (show =
     Nothing  "Nothing"
     (Just x) (string-append "Just " (show x))
   )
@@ -498,7 +507,7 @@ False       ; Boolean literal
 (impl Convertible ((Maybe a) (Maybe b)) 
   (where (Convertible a b))
 
-  (= convert
+  (convert =
     Nothing  Nothing
     (Just x) (Just ((Convertible a b)::convert x))  ; trait disambiguation
   )
@@ -529,32 +538,32 @@ False       ; Boolean literal
 ;;   - `pure` for lifting a value into the monad
 ;;   - `throw` or other effects as relevant to the Io or error type
 
-(: get_user_data (Int -> (Io (Maybe UserData))))
-(= get_user_data
+(get_user_data : (Int -> (Io (Maybe UserData))))
+(get_user_data =
   id (do
-    (:= conn open_connection)
-    (:= result (query_user conn id))
+    (conn := open_connection)
+    (result := (query_user conn id))
     (pure result)
   )
 )
 
-(: process_result ((Result a Error) -> (Io a)))
-(= process_result
+(process_result : ((Result a Error) -> (Io a)))
+(process_result =
   (Ok val) (pure val)
   (Err e)  (do
-    (:= _ (log_error e))
+    (_ := (log_error e))
     (Exception e)
   )
 )
 
-(: fetch_and_process (Int -> (Io (Result Data Error))))
-(= fetch_and_process
+(fetch_and_process : (Int -> (Io (Result Data Error))))
+(fetch_and_process =
   id (do
-    (:= maybe_user (get_user id))
+    (maybe_user := (get_user id))
     (match maybe_user
-      (Nothing)   (pure (Err (Error (= message "User not found"))))
+      (Nothing)   (pure (Err (Error (message = "User not found"))))
       (Just user) (do
-        (:= result (process_user user))
+        (result := (process_user user))
         (pure (Ok result))
       )
     )
@@ -562,8 +571,8 @@ False       ; Boolean literal
 )
 
 ;; ;; ? Monad method form 
-;; (: get_user_data2 (Int -> (Io (Maybe UserData))))
-;; (= get_user_data2
+;; (get_user_data2 : (Int -> (Io (Maybe UserData))))
+;; (get_user_data2 =
 ;;   id (open_connection.>>= (lambda conn
 ;;         query_user conn id.>>= (lambda result
 ;;           pure result
@@ -585,30 +594,30 @@ False       ; Boolean literal
   ;; Public data type (no underscore prefix)
   (data Connection
     (Connection 
-      (: url    String)
-      (: active Bool)
+      (url :    String)
+      (active : Bool)
     )
   )
 
   ;; Public functions (no underscore prefix)
-  (: connect (String -> (Result Connection Error)))
-  (= connect url (_make_connection url))
+  (connect : (String -> (Result Connection Error)))
+  (connect = url (_make_connection url))
 
-  (: query   (Connection -> (String -> (Result Data Error))))
-  (= query conn sql (_run_query conn sql))
+  (query : (Connection -> (String -> (Result Data Error))))
+  (query = conn sql (_run_query conn sql))
 
   ;; Private helper function (underscore prefix)
-  (: _make_connection (String -> (Result Connection Error)))
-  (= _make_connection
+  (_make_connection : (String -> (Result Connection Error)))
+  (_make_connection =
     url (do
-      (:= conn (Connection url True))
+      (conn := (Connection url True))
       (pure conn)
     )
   )
 
   ;; Private helper function (underscore prefix)  
-  (: _run_query (Connection -> (String -> (Result Data Error))))
-  (= _run_query conn sql hole!)
+  (_run_query : (Connection -> (String -> (Result Data Error))))
+  (_run_query = conn sql hole!)
 )
 
 (use database)                ; This is a Ident
@@ -626,25 +635,25 @@ False       ; Boolean literal
        (collections:: List))
 
   ;; Public functions (no underscore prefix)
-  (: trim (String -> String))
-  (= trim s (_trim_impl s)) 
+  (trim : (String -> String))
+  (trim = s (_trim_impl s)) 
 
-  (: split (String -> (String -> '(String))))
-  (= split (s sep) (_split_impl s sep))
+  (split : (String -> (String -> '(String))))
+  (split = (s sep) (_split_impl s sep))
 
   ;; Private helper functions (underscore prefix)
-  (: _trim_impl (String -> String))
-  (= _trim_impl s hole!)
+  (_trim_impl : (String -> String))
+  (_trim_impl = s hole!)
 
-  (: _split_impl (String -> (String -> '(String))))
-  (= _split_impl s sep hole!)
+  (_split_impl : (String -> (String -> '(String))))
+  (_split_impl = s sep hole!)
 )
 
-(: process_data (String -> (Result '(Int) Error)))
-(= process_data
+(process_data : (String -> (Result '(Int) Error)))
+(process_data =
   raw_data (do
-    (= trimmed (utils::trim raw_data))
-    (= parts   (utils::split trimmed ","))
+    (trimmed = (utils::trim raw_data))
+    (parts =   (utils::split trimmed ","))
     (parse_integers parts)
   )
 )
@@ -660,12 +669,12 @@ False       ; Boolean literal
   (use _some_submodule)
   
   ;; Public function (no underscore prefix)
-  (: my_func (Int -> Int))
-  (= my_func x (x + 1))
+  (my_func : (Int -> Int))
+  (my_func = x (x + 1))
 
   ;; Private helper (underscore prefix)
-  (: _helper (Int -> Int))
-  (= _helper x (x * 2))
+  (_helper : (Int -> Int))
+  (_helper = x (x * 2))
 )
 
 ;; Keyword macro should be reserved for future use
@@ -699,19 +708,19 @@ False       ; Boolean literal
 ;;   - `data` keyword for data constructor synonyms
 
 ;; If Ident start with upper case, it should be Constructor binding
-;; (= (Array a) '(a))
-;; (= (ConvertiblePair a b) #(a b) (where (Convertible a b)))
+;; (( =Array a) '(a))
+;; (( =ConvertiblePair a b) #(a b) (where (Convertible a b)))
 
 ;; Type level (value, function) binding
 ;; (kind Name *)
-(: name Type0)
-(= name String)
+(name : Type0)
+(name = String)
 
 ;; ;; (kind Array (* -> *))
 ;; (alias (Array a) '(a))
 
-;; ;; (: Array (Type0 -> Type0))
-;; (= Array
+;; ;; (Array : (Type0 -> Type0))
+;; (Array =
 ;;   (a b) (where (Array a b)) '(a b)
 ;; )
 
