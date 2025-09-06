@@ -600,7 +600,8 @@ impl Lexer {
             }
 
             i += 1;
-        }        let end_pos = self.pos + i;
+        }
+        let end_pos = self.pos + i;
 
         {
             let s = &self.source[start_pos as usize..end_pos as usize]; // First element should be IdentPath, and the rest should be IdentTree
@@ -860,13 +861,13 @@ impl Lexer {
 
     fn parse_var_ident(&mut self, end_pos: u32) -> Result<RcMut<SExpr>, String> {
         let s = &self.source[self.pos as usize..end_pos as usize];
-        
+
         // Check if this is a ListIdent (ends with "..")
         if s.len() > 2 && s.ends_with("..") {
             let source_ref = self.parse_list_ident_impl(end_pos)?;
             return Ok(RcMut::new(SExpr::ListIdent(ListIdent(source_ref))));
         }
-        
+
         let source_ref = self.parse_var_ident_impl(end_pos)?;
         Ok(RcMut::new(SExpr::VarIdent(VarIdent(source_ref))))
     }
@@ -905,10 +906,10 @@ impl Lexer {
 
         // Validate that the identifier part (excluding "..") is valid
         let var_part = &s[..s.len() - 2]; // Caller has already determined this ends with ".."
-        
+
         if var_part.is_empty() {
             return Err(self.err_msg(
-                "While parsing list ident, expected identifier before '..' but found empty string"
+                "While parsing list ident, expected identifier before '..' but found empty string",
             ));
         }
 

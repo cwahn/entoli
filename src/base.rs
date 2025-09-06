@@ -3,6 +3,10 @@ use std::{
     rc::Rc,
 };
 
+use rustc_hash::FxHashMap;
+
+pub(crate) type HashMap<K, V> = FxHashMap<K, V>;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RcMut<T>(pub Rc<RefCell<T>>);
 

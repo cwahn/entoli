@@ -1,10 +1,14 @@
-use crate::{base::RcMut, lexer::SExpr, source_ref::SourceRef};
+use crate::{
+    base::{HashMap, RcMut},
+    lexer::SExpr,
+    source_ref::SourceRef,
+};
 
 // ===========================================================
 // AST Types - Core Language Constructs
 // ===========================================================
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Ident {
     // Built-in operators and symbols
     Arrow,    // -> in (Int -> Bool)
@@ -67,27 +71,27 @@ pub struct IdentTree {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
     // Core expressions from parser_draft
-    Literal(LiteralExpr),         // 42, "hello", True
-    Var(IdentPath),               // x, myFunc, Module.function
-    
-    Lambda(RcMut<Lambda>),        // Untyped lambda
+    Literal(LiteralExpr), // 42, "hello", True
+    Var(IdentPath),       // x, myFunc, Module.function
+
+    Lambda(RcMut<Lambda>),           // Untyped lambda
     TypedLambda(RcMut<TypedLambda>), // Typed lambda
-    
-    App { 
-        f: RcMut<Expr>, 
-        args: Vec<Expr> 
-    },                            // (f x y), (+ 1 2)
-    
+
+    App {
+        f: RcMut<Expr>,
+        args: Vec<Expr>,
+    }, // (f x y), (+ 1 2)
+
     // Extended expressions (improvements over parser_draft)
     // Note: parser_draft suggests these can be desugared:
-    // - Match can be expressed as application of lambda  
+    // - Match can be expressed as application of lambda
     // - Do can be desugared to regular monadic expressions
-    
+
     // Pattern matching (can be desugared to lambda application)
     // Uses Rule from parser_draft instead of MatchArm
     Match {
         expr: RcMut<Expr>,
-        rules: Vec<Rule>,  // Use Rule instead of MatchArm
+        rules: Vec<Rule>, // Use Rule instead of MatchArm
     }, // (match x (Just y) y Nothing 0)
 
     // Do notation (can be desugared to monadic expressions)
@@ -104,15 +108,15 @@ pub enum LiteralExpr {
     F64(f64),       // 3.14, -2.5
     String(String), // "hello world"
     Char(char),     // 'a', '\n'
-    // Note: List and Tuple are NOT literals - they are constructor data
-    // List: '(1 2 3) -> App { f: List, args: [1, 2, 3] }
-    // Tuple: #(a b c) -> App { f: Tuple, args: [a, b, c] }
+                    // Note: List and Tuple are NOT literals - they are constructor data
+                    // List: '(1 2 3) -> App { f: List, args: [1, 2, 3] }
+                    // Tuple: #(a b c) -> App { f: Tuple, args: [a, b, c] }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum DoStmt {
     Bind { pat: RcMut<Pattern>, expr: Expr }, // (:= x getValue)
-    Expr(Expr),                              // (putStrLn "hello")
+    Expr(Expr),                               // (putStrLn "hello")
 }
 
 // ===========================================================
@@ -139,7 +143,7 @@ pub enum TypeExpr {
 #[derive(Debug, Clone, PartialEq)]
 pub enum ModuleItem {
     TypedLambda(RcMut<TypedLambda>), // Function definitions with optional type annotations
-    TypeCtor(RcMut<TypeCtor>),       // (data Name ...) - data type definition  
+    TypeCtor(RcMut<TypeCtor>),       // (data Name ...) - data type definition
     Trait(RcMut<Trait>),             // (trait Name ...) - trait definition
     Module(RcMut<Module>),           // (mod Name ...) - nested module
     Use(UseItem),                    // (use ...) - use declaration (improvement over parser_draft)
@@ -150,12 +154,12 @@ pub type TypeCtorItem = RcMut<TypePattern>;
 #[derive(Debug, Clone, PartialEq)]
 pub enum TraitItem {
     // Required items (no implementation)
-    RequiredTypeCtor(Vec<TypeExpr>),     // Required associated type
-    RequiredLambda(RcMut<TypePattern>),  // Required method signature
-    
+    RequiredTypeCtor(Vec<TypeExpr>),    // Required associated type
+    RequiredLambda(RcMut<TypePattern>), // Required method signature
+
     // Provided items (with implementation)
-    TypedLambda(RcMut<TypedLambda>),     // Default method implementation
-    TypeCtor(RcMut<TypeCtor>),           // Associated type definition
+    TypedLambda(RcMut<TypedLambda>), // Default method implementation
+    TypeCtor(RcMut<TypeCtor>),       // Associated type definition
 }
 
 // ===========================================================
@@ -164,7 +168,7 @@ pub enum TraitItem {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Module {
-    pub scope: std::collections::BTreeMap<Ident, ModuleItem>, // Name -> Item mapping
+    pub scope: HashMap<Ident, ModuleItem>, // Name -> Item mapping
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -176,13 +180,13 @@ pub struct TypedLambda {
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypeCtor {
     pub type_params_pattern: RcMut<TypePattern>, // Type parameters with constraints
-    pub scope: std::collections::BTreeMap<Ident, TypeCtorItem>, // Constructor name -> Pattern mapping
+    pub scope: HashMap<Ident, TypeCtorItem>,     // Constructor name -> Pattern mapping
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Trait {
     pub type_params_pattern: RcMut<TypePattern>, // Type parameters with constraints
-    pub scope: std::collections::BTreeMap<Ident, TraitItem>, // Item name -> TraitItem mapping
+    pub scope: HashMap<Ident, TraitItem>,        // Item name -> TraitItem mapping
 }
 
 // ===========================================================
@@ -191,65 +195,68 @@ pub struct Trait {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Lambda {
-    Mono(RcMut<Rule>),  // Single pattern-matching rule
-    Poly(Vec<Rule>),    // Multiple pattern-matching rules
+    Mono(RcMut<Rule>), // Single pattern-matching rule
+    Poly(Vec<Rule>),   // Multiple pattern-matching rules
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Rule {
-    pub pattern: RcMut<Pattern>,  // Pattern to match
-    pub expr: RcMut<Expr>,        // Expression to evaluate
+    pub pattern: RcMut<Pattern>, // Pattern to match
+    pub expr: RcMut<Expr>,       // Expression to evaluate
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Pattern {
-    pub pats: RcMut<Pats>,    // The actual patterns (may be unparsed initially)
-    pub guard: Vec<Expr>,     // Guard conditions
+    pub pats: RcMut<Pats>, // The actual patterns (may be unparsed initially)
+    pub guard: Vec<Expr>,  // Guard conditions
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Pats {
-    Unparsed(RcMut<SExpr>),   // Unparsed S-expression (need arity info to parse)
-    Parsed(Vec<Pattern>),     // Parsed pattern list
+    Unparsed(RcMut<SExpr>), // Unparsed S-expression (need arity info to parse)
+    Parsed(Vec<Pattern>),   // Parsed pattern list
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Pat {
-    Var(Ident),                               // Variable pattern
-    Lit(LiteralExpr),                        // Literal pattern
+    Var(Ident),                                // Variable pattern
+    Lit(LiteralExpr),                          // Literal pattern
     Ctor { ident: IdentPath, args: Vec<Pat> }, // Constructor pattern
-    Wildcard,                                // _ pattern
-    Ellipsis,                                // ... pattern
+    Wildcard,                                  // _ pattern
+    Ellipsis,                                  // ... pattern
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypePattern {
-    pub pats: RcMut<TypePats>,    // Type patterns
-    pub guard: Vec<TypeExpr>,     // Type constraints
+    pub pats: RcMut<TypePats>, // Type patterns
+    pub guard: Vec<TypeExpr>,  // Type constraints
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TypePats {
-    Unparsed(RcMut<SExpr>),       // Unparsed S-expression
-    Parsed(Vec<TypePattern>),     // Parsed type pattern list
+    Unparsed(RcMut<SExpr>),   // Unparsed S-expression
+    Parsed(Vec<TypePattern>), // Parsed type pattern list
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TypePat {
-    Var(Ident),                                   // Type variable
-    Ctor { ident: IdentPath, args: Vec<TypePat> }, // Type constructor
-    Wildcard,                                     // _ in types
+    Var(Ident), // Type variable
+    Ctor {
+        ident: IdentPath,
+        args: Vec<TypePat>,
+    }, // Type constructor
+    Wildcard,   // _ in types
 }
 
 // ===========================================================
-// Use/Import System (following syntax-design.lisp) 
+// Use/Import System (following syntax-design.lisp)
 // ===========================================================
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum UseItem {
-    Ident(Ident),           // math in (use math)
-    IdentPath(IdentPath),   // math::statistics in (use math::statistics)  
-    IdentTree(IdentTree),   // (collections:: Map Set) in (use (collections:: Map Set))
+    Ident(Ident),         // math in (use math)
+    IdentPath(IdentPath), // math::statistics in (use math::statistics)
+    IdentTree(IdentTree), // (collections:: Map Set) in (use (collections:: Map Set))
 } // follows design: (use database), (use prelude::..), (use (collections:: Map Set))
 
 #[derive(Debug, Clone, PartialEq)]
@@ -325,7 +332,7 @@ pub fn parse_module_item_old(ctx: &mut ParseContext, s_expr: &SExpr) -> Result<M
             if elements.is_empty() {
                 return Err("Empty module item list".to_string());
             }
-            
+
             let first = &*elements[0].get();
             match first {
                 // Type annotation: (: name type_expr)
@@ -333,43 +340,43 @@ pub fn parse_module_item_old(ctx: &mut ParseContext, s_expr: &SExpr) -> Result<M
                     if elements.len() != 3 {
                         return Err(format!("Type annotation requires exactly 3 elements, got {}", elements.len()));
                     }
-                    
+
                     // Parse the function name
                     let name = match &*elements[1].get() {
                         SExpr::VarIdent(var_ident) => Ident::VarIdent(var_ident.0.clone()),
                         _ => return Err("Type annotation name must be a variable identifier".to_string()),
                     };
-                    
+
                     // Parse the type expression
                     let type_expr = parse_type_expr(ctx, &elements[2].get())?;
-                    
+
                     let type_annot = TypeAnnot { name, type_expr };
                     Ok(ModuleItem::TypeAnnot(type_annot))
                 }
-                
+
                 // Function/data binding: (= name patterns body) or (= name body)
                 SExpr::Binding => {
                     if elements.len() < 3 || elements.len() > 4 {
                         return Err(format!("Binding requires 3 or 4 elements, got {}", elements.len()));
                     }
-                    
+
                     // Parse binding name
                     let name = match &*elements[1].get() {
                         SExpr::VarIdent(var_ident) => Ident::VarIdent(var_ident.0.clone()),
                         _ => return Err("Binding name must be a variable identifier".to_string()),
                     };
-                    
+
                     if elements.len() == 3 {
                         // Simple data binding: (= name value)
                         let body = parse_expr(ctx, &elements[2].get())?;
-                        
+
                         let binding = Binding {
                             name,
                             type_annotation: None,
                             patterns: vec![], // empty patterns = simple data binding
                             body,
                         };
-                        
+
                         Ok(ModuleItem::Binding(binding))
                     } else {
                         // Function binding: (= name patterns body)
@@ -382,21 +389,21 @@ pub fn parse_module_item_old(ctx: &mut ParseContext, s_expr: &SExpr) -> Result<M
                             }
                             _ => return Err("Expected list of patterns for function parameters".to_string()),
                         }
-                        
+
                         // Parse body from the fourth element
                         let body = parse_expr(ctx, &elements[3].get())?;
-                        
+
                         let binding = Binding {
                             name,
                             type_annotation: None, // Type annotation would be set during semantic analysis
                             patterns,
                             body,
                         };
-                        
+
                         Ok(ModuleItem::Binding(binding))
                     }
                 }
-                
+
                 // TODO: Add other module item types (data definitions, traits, etc.)
                 _ => {
                     Err(format!("Unsupported module item type starting with {:?}", first))
@@ -830,7 +837,8 @@ pub fn parse_type_expr(_ctx: &mut ParseContext, s_expr: &SExpr) -> Result<TypeEx
 
                 // Parameterized type constructors
                 SExpr::CtorIdent(ctor_ident) => {
-                    let ident_path = IdentPath(RcMut::new(vec![Ident::CtorIdent(ctor_ident.0.clone())]));
+                    let ident_path =
+                        IdentPath(RcMut::new(vec![Ident::CtorIdent(ctor_ident.0.clone())]));
                     let mut args = Vec::new();
 
                     // Parse type arguments
@@ -876,15 +884,15 @@ mod tests {
     fn test_basic_compilation() {
         // Just test that we can create basic AST nodes
         let _module = Module {
-            scope: std::collections::BTreeMap::new(),
+            scope: HashMap::new(),
         };
-        
+
         // Test TypedLambda creation
         let type_pattern = TypePattern {
             pats: RcMut::new(TypePats::Parsed(vec![])),
             guard: vec![],
         };
-        
+
         let rule = Rule {
             pattern: RcMut::new(Pattern {
                 pats: RcMut::new(Pats::Parsed(vec![])),
@@ -892,14 +900,14 @@ mod tests {
             }),
             expr: RcMut::new(Expr::Literal(LiteralExpr::I64(42))),
         };
-        
+
         let lambda = Lambda::Mono(RcMut::new(rule));
-        
+
         let _typed_lambda = TypedLambda {
             type_pattern: RcMut::new(type_pattern),
             lambda,
         };
-        
+
         // If we get here, the basic structure compiles
         assert!(true);
     }
@@ -1374,10 +1382,10 @@ mod tests {
                         assert_eq!(idents[0], Ident::Arrow);
                     }
                 }
-                
+
                 // Should have two arguments: Int and Bool
                 assert_eq!(args.len(), 2);
-                
+
                 // First argument should be Int
                 match &args[0] {
                     TypeExpr::Ctor { ident: IdentPath(ref idents), args } => {
@@ -1393,7 +1401,7 @@ mod tests {
                     _ => panic!("Expected Ctor for first argument"),
                 }
 
-                // Second argument should be Bool  
+                // Second argument should be Bool
                 match &args[1] {
                     TypeExpr::Ctor { ident: IdentPath(ref idents), args } => {
                         assert_eq!(idents.len(), 1);
@@ -1599,8 +1607,8 @@ mod tests {
     fn test_parse_data_definition() {
         let s_exprs = lex_source(
             r#"
-            (data (Maybe a) 
-                Nothing 
+            (data (Maybe a)
+                Nothing
                 (Just a)
             )
         "#,
@@ -1658,7 +1666,7 @@ mod tests {
     fn test_parse_trait_definition() {
         let s_exprs = lex_source(
             r#"
-            (trait (Show a) 
+            (trait (Show a)
                 (show : (a -> String)))
         "#,
         );
@@ -1708,9 +1716,9 @@ mod tests {
     fn test_parse_impl_definition() {
         let s_exprs = lex_source(
             r#"
-            (impl Show Bool 
-                (show = 
-                    True  "True" 
+            (impl Show Bool
+                (show =
+                    True  "True"
                     False "False")
                 )
         "#,
@@ -1780,8 +1788,8 @@ mod tests {
     fn test_parse_module_definition() {
         let s_exprs = lex_source(
             r#"
-            (mod my_module 
-                (data MyType 
+            (mod my_module
+                (data MyType
                     (MyCons Int)
                 )
             )
@@ -1866,8 +1874,8 @@ mod tests {
     fn test_parse_pattern_matching_expression() {
         let s_exprs = lex_source(
             r#"
-            (match x 
-                (Nothing 0) 
+            (match x
+                (Nothing 0)
                 ((Just y) y)
             )
         "#,
@@ -1957,8 +1965,8 @@ mod tests {
     fn test_parse_do_notation() {
         let s_exprs = lex_source(
             r#"
-            (do 
-                (x := get_value) 
+            (do
+                (x := get_value)
                 (pure x))
         "#,
         );
