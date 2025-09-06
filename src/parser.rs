@@ -80,34 +80,20 @@ pub enum Expr {
     
     // Extended expressions (improvements over parser_draft)
     // Note: parser_draft suggests these can be desugared:
-    // - Let can be expressed as application of lambda
     // - Match can be expressed as application of lambda  
     // - Do can be desugared to regular monadic expressions
-    // - Type annotation can be expressed as application of typed lambda
     
-    // Let binding (can be desugared to lambda application)
-    Let {
-        pattern: Pattern,
-        value: RcMut<Expr>,
-        body: RcMut<Expr>,
-    }, // (let x 5 (+ x 2))
-
     // Pattern matching (can be desugared to lambda application)
+    // Uses Rule from parser_draft instead of MatchArm
     Match {
         expr: RcMut<Expr>,
-        arms: Vec<MatchArm>,
+        rules: Vec<Rule>,  // Use Rule instead of MatchArm
     }, // (match x (Just y) y Nothing 0)
 
     // Do notation (can be desugared to monadic expressions)
     Do {
         stmts: Vec<DoStmt>,
     }, // (do (:= x getValue) (return (+ x 1)))
-
-    // Type annotation (can be desugared to typed lambda application)
-    TypeAnnot {
-        expr: RcMut<Expr>,
-        type_expr: TypeExpr,
-    }, // (x : Int)
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -118,21 +104,15 @@ pub enum LiteralExpr {
     F64(f64),       // 3.14, -2.5
     String(String), // "hello world"
     Char(char),     // 'a', '\n'
-    List(Vec<Expr>), // '(1 2 3)
-    Tuple(Vec<Expr>), // #(a b c)
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct MatchArm {
-    pub pattern: Pattern,
-    pub guard: Option<Expr>,
-    pub body: Expr,
+    // Note: List and Tuple are NOT literals - they are constructor data
+    // List: '(1 2 3) -> App { f: List, args: [1, 2, 3] }
+    // Tuple: #(a b c) -> App { f: Tuple, args: [a, b, c] }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum DoStmt {
-    Bind { pat: Pattern, expr: Expr }, // (:= x getValue)
-    Expr(Expr),                       // (putStrLn "hello")
+    Bind { pat: RcMut<Pattern>, expr: Expr }, // (:= x getValue)
+    Expr(Expr),                              // (putStrLn "hello")
 }
 
 // ===========================================================
