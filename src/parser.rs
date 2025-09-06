@@ -287,7 +287,7 @@ pub struct Module {
     pub scope: HashMap<Ident, ModuleItem>, // Name -> Item mapping
 }
 
-/// Function with optional explicit type annotation; e.g. (= add (x : Int) (y : Int) : Int (+ x y))
+/// Function with optional explicit type annotation; e.g. (: add (-> Int (-> Int Int) (= add (x y) (+ x y)))
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypedLambda {
     pub type_pattern: RcMut<TypePattern>, // Optional type annotation
@@ -343,11 +343,12 @@ pub enum Pats {
 /// Individual pattern element in value-level matching; e.g. x in (lambda x (+ x 1)) or (Just x) in pattern match
 #[derive(Debug, Clone, PartialEq)]
 pub enum Pat {
-    Var(Ident),                                // Variable pattern
     Lit(LiteralExpr),                          // Literal pattern
+    Var(Ident),                                // Variable pattern
+    ListVar(Ident),                            // List variable pattern like xs..
     Ctor { ident: IdentPath, args: Vec<Pat> }, // Constructor pattern
     Wildcard,                                  // _ pattern
-    Ellipsis,                                  // ... pattern
+    Ellipsis,                                  // .. pattern
 }
 
 /// Type-level pattern with constraints; e.g. (a : Show) in trait definitions or (Maybe a) in type signatures
@@ -360,7 +361,7 @@ pub struct TypePattern {
 /// Type pattern container - unparsed until context available; e.g. Unparsed((Maybe a)) or Parsed([Maybe, a])
 #[derive(Debug, Clone, PartialEq)]
 pub enum TypePats {
-    Unparsed(RcMut<SExpr>),   // Unparsed S-expression, Since airity of type patterns might not be known yet
+    Unparsed(RcMut<SExpr>), // Unparsed S-expression, Since airity of type patterns might not be known yet
     Parsed(Vec<TypePattern>), // Parsed type pattern list
 }
 
@@ -444,6 +445,19 @@ pub fn parse_module_item(_ctx: &mut ParseContext, _s_expr: &SExpr) -> Result<Mod
     // TODO: Implement parsing for new AST structure
     // For now, return error to get code compiling
     Err("parse_module_item not implemented for new AST structure".to_string())
+}
+
+// Parse a literal expression - assumes s_expr is already known to be a literal
+pub fn parse_literal_expr(_ctx: &mut ParseContext, s_expr: &SExpr) -> Result<LiteralExpr, String> {
+    match s_expr {
+        SExpr::Unit => Ok(LiteralExpr::Unit),
+        SExpr::Bool(value) => Ok(LiteralExpr::Bool(*value)),
+        SExpr::I64(value) => Ok(LiteralExpr::I64(*value)),
+        SExpr::F64(value) => Ok(LiteralExpr::F64(*value)),
+        SExpr::String(src_ref) => Ok(LiteralExpr::String(src_ref.resolve().to_string())),
+        SExpr::Char(value) => Ok(LiteralExpr::Char(*value)),
+        _ => Err(format!("Expected literal, got {:?}", s_expr))
+    }
 }
 
 /*
@@ -1032,6 +1046,53 @@ mod tests {
 
         // If we get here, the basic structure compiles
         assert!(true);
+    }
+
+    #[test]
+    fn test_parse_literal_expr() {
+        let mut ctx = ParseContext::new();
+        
+        // Test Unit - follows LiteralExpr order
+        let unit_exprs = lex_source("()");
+        let unit_result = parse_literal_expr(&mut ctx, &unit_exprs[0].get());
+        assert_eq!(unit_result, Ok(LiteralExpr::Unit));
+        
+        // Test Bool true
+        let bool_true_exprs = lex_source("true");
+        let bool_true_result = parse_literal_expr(&mut ctx, &bool_true_exprs[0].get());
+        assert_eq!(bool_true_result, Ok(LiteralExpr::Bool(true)));
+        
+        // Test Bool false  
+        let bool_false_exprs = lex_source("false");
+        let bool_false_result = parse_literal_expr(&mut ctx, &bool_false_exprs[0].get());
+        assert_eq!(bool_false_result, Ok(LiteralExpr::Bool(false)));
+        
+        // Test I64
+        let i64_exprs = lex_source("42");
+        let i64_result = parse_literal_expr(&mut ctx, &i64_exprs[0].get());
+        assert_eq!(i64_result, Ok(LiteralExpr::I64(42)));
+        
+        // Test F64
+        let f64_exprs = lex_source("3.14");
+        let f64_result = parse_literal_expr(&mut ctx, &f64_exprs[0].get());
+        assert_eq!(f64_result, Ok(LiteralExpr::F64(3.14)));
+        
+        // Test String
+        let string_exprs = lex_source("\"hello\"");
+        let string_result = parse_literal_expr(&mut ctx, &string_exprs[0].get());
+        assert_eq!(string_result, Ok(LiteralExpr::String("hello".to_string())));
+        
+        // Test Char
+        let char_exprs = lex_source("'x'");
+        let char_result = parse_literal_expr(&mut ctx, &char_exprs[0].get());
+        assert_eq!(char_result, Ok(LiteralExpr::Char('x')));
+        
+        // Test error case - non-literal
+        let non_literal_exprs = lex_source("foo");
+        let error_result = parse_literal_expr(&mut ctx, &non_literal_exprs[0].get());
+        assert!(error_result.is_err());
+        
+        println!("All literal expression tests passed!");
     }
 
     /*
