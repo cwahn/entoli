@@ -319,7 +319,7 @@ pub enum Lambda {
     Poly(Vec<Rule>),   // Multiple pattern-matching rules
 }
 
-/// Single pattern-matching rule in a function; e.g. (x => (+ x 1)) in lambda definition
+/// Single pattern-matching rule in a function; e.g. x (+ x 1) in lambda definition
 #[derive(Debug, Clone, PartialEq)]
 pub struct Rule {
     pub pattern: RcMut<Pattern>, // Pattern to match
@@ -360,7 +360,7 @@ pub struct TypePattern {
 /// Type pattern container - unparsed until context available; e.g. Unparsed((Maybe a)) or Parsed([Maybe, a])
 #[derive(Debug, Clone, PartialEq)]
 pub enum TypePats {
-    Unparsed(RcMut<SExpr>),   // Unparsed S-expression
+    Unparsed(RcMut<SExpr>),   // Unparsed S-expression, Since airity of type patterns might not be known yet
     Parsed(Vec<TypePattern>), // Parsed type pattern list
 }
 
@@ -387,29 +387,18 @@ pub enum UseItem {
     IdentTree(IdentTree), // (collections:: Map Set) in (use (collections:: Map Set))
 }
 
-/// Function rule with patterns, guard, and body; e.g. ((x y) (> x 0) (+ x y)) in function definition
-#[derive(Debug, Clone, PartialEq)]
-pub struct FunctionRule {
-    pub patterns: Vec<Pattern>,
-    pub guard: Option<Expr>,
-    pub body: Expr,
-}
-
-/// Constructor definition with name and fields; e.g. (Person name age) in data type definition
+/// Constructor definition with name and positional fields; e.g. (Person String Int) in data type definition
 #[derive(Debug, Clone, PartialEq)]
 pub struct Constructor {
     pub name: Ident,
     pub fields: Vec<ConstructorField>,
 }
 
-/// Constructor field types for data definitions; e.g. Int in (Point Int Int) or (name : String) in records
+/// Constructor field with name and type; e.g. (name : String) in constructor definition
 #[derive(Debug, Clone, PartialEq)]
-pub enum ConstructorField {
-    /// Positional field; e.g. Int in (Point Int Int)
-    Positional(TypeExpr),
-
-    /// Named field for records; e.g. (name : String) in record definition
-    Named { name: Ident, type_expr: TypeExpr },
+pub struct ConstructorField {
+    pub name: Ident,
+    pub type_expr: TypeExpr,
 }
 
 // ===========================================================
