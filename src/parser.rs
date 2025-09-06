@@ -8,181 +8,300 @@ use crate::{
 // AST Types - Core Language Constructs
 // ===========================================================
 
+/// Identifier types covering operators, keywords, types, and user-defined names; e.g. + in (+ 1 2), if in (if True x y)
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Ident {
     // Built-in operators and symbols
-    Arrow,    // -> in (Int -> Bool)
-    Quote,    // ' in '(1 2 3)
-    Nil,      // Nil value
-    Hash(u8), // #2 in #(a b) tuples
+    /// Function type arrow operator; e.g. -> in (: f (Int -> Bool))
+    Arrow,
+
+    /// Quote operator for lists; e.g. ' in ('(1 2 3))
+    Quote,
+
+    /// Nil value; e.g. Nil
+    Nil,
+
+    /// Tuple constructor; e.g. #3 in (#(a b c))
+    Hash(u8),
 
     // Arithmetic operators
-    Add,     // + in (2 + 3)
-    Sub,     // - in (5 - 2)
-    Mul,     // * in (4 * 3)
-    Div,     // / in (8 / 2)
-    Modulus, // % in (7 % 3)
+    /// Addition operator; e.g. + in (+ 2 3)
+    Add,
+
+    /// Subtraction operator; e.g. - in (- 5 2)
+    Sub,
+
+    /// Multiplication operator; e.g. * in (* 4 3)
+    Mul,
+
+    /// Division operator; e.g. / in (/ 8 2)
+    Div,
+
+    /// Modulus operator; e.g. % in (% 7 3)
+    Modulus,
 
     // Comparison operators
-    Eq, // == in (x == y)
-    Ne, // != in (x != y)
-    Gt, // > in (x > y)
-    Ge, // >= in (x >= y)
-    Lt, // < in (x < y)
-    Le, // <= in (x <= y)
+    /// Equality operator; e.g. == in (== x y)
+    Eq,
+
+    /// Inequality operator; e.g. != in (!= x y)
+    Ne,
+
+    /// Greater than operator; e.g. > in (> x y)
+    Gt,
+
+    /// Greater than or equal operator; e.g. >= in (>= x y)
+    Ge,
+
+    /// Less than operator; e.g. < in (< x y)
+    Lt,
+
+    /// Less than or equal operator; e.g. <= in (<= x y)
+    Le,
 
     // Logical operators
-    And, // & in (x & y)
-    Or,  // | in (x | y)
-    Not, // ! in (!flag)
+    /// Logical AND operator; e.g. & in (& x y)
+    And,
+
+    /// Logical OR operator; e.g. | in (| x y)
+    Or,
+
+    /// Logical NOT operator; e.g. ! in (! flag)
+    Not,
 
     // Other operators
-    Dot, // . in obj.field
+    /// Dot operator; e.g. . in (. f g)
+    Dot,
 
     // Unit type/value
-    Unit, // () unit value
+    /// Unit type and value; e.g. ()
+    Unit,
 
     // Built-in types
-    BoolType, // Bool type
-    I64Type,  // I64 type
-    F64Type,  // F64 type
-    StrType,  // Str type
+    /// Boolean type; e.g. Bool in (: x Bool)
+    BoolType,
+
+    /// 64-bit integer type; e.g. I64 in (: count I64)
+    I64Type,
+
+    /// 64-bit floating point type; e.g. F64 in (: price F64)
+    F64Type,
+
+    /// String type; e.g. Str in (: name Str)
+    StrType,
 
     // User-defined identifiers
-    CtorIdent(SourceRef),     // Just, Nothing, Person
-    VarIdent(SourceRef),      // x, myVar, _private
-    OpIdent(SourceRef),       // custom operators
-    FieldAccessor(SourceRef), // .name, .age
+    /// Constructor identifier (starts with uppercase); e.g. Just in (Just x)
+    CtorIdent(SourceRef),
+
+    /// Variable identifier (starts with lowercase or underscore); e.g. x in (+ x y)
+    VarIdent(SourceRef),
+
+    /// Custom operator identifier; e.g. >>= in (>>= m f)
+    OpIdent(SourceRef),
+
+    /// Field accessor with dot prefix; e.g. .name in (.name person)
+    FieldAccessor(SourceRef),
 }
 
+/// Qualified identifier path for module and type access; e.g. Module.function in (Module.function x)
 #[derive(Debug, Clone, PartialEq)]
-pub struct IdentPath(pub RcMut<Vec<Ident>>); // Module.function, MyType.field
+pub struct IdentPath(pub RcMut<Vec<Ident>>);
 
+/// Tree structure for complex use imports; e.g. (collections:: Map Set) in (use (collections:: Map Set))
 #[derive(Debug, Clone, PartialEq)]
 pub struct IdentTree {
+    /// The path prefix for the import; e.g. collections in (collections:: Map Set)
     pub head: IdentPath,
+
+    /// Nested items to import from the path; e.g. [Map, Set] in (collections:: Map Set)
     pub tail: RcMut<Vec<IdentTree>>,
-} // (collections:: Map Set) in use statements
+}
 
 // ===========================================================
 // Expressions (updated to match parser_draft.rs)
 // ===========================================================
 
+/// Expression types in the language; e.g. (+ x 1) in (= result (+ x 1))
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
-    // Core expressions from parser_draft
-    Literal(LiteralExpr), // 42, "hello", True
-    Var(IdentPath),       // x, myFunc, Module.function
+    /// Literal value expression; e.g. 42 in (+ 42 x)
+    Literal(LiteralExpr),
 
-    Lambda(RcMut<Lambda>),           // Untyped lambda
-    TypedLambda(RcMut<TypedLambda>), // Typed lambda
+    /// Variable reference expression; e.g. x in (+ x 1)
+    Var(IdentPath),
 
+    /// Untyped lambda function; e.g. (lambda x (+ x 1))
+    Lambda(RcMut<Lambda>),
+
+    /// Lambda following type annotation; e.g. (name : (-> a a)) (= name (lambda x (+ x 1))) without name
+    TypedLambda(RcMut<TypedLambda>),
+
+    /// Function application; e.g. (f x y)
     App {
+        /// The function being applied; e.g. f in (f x y)
         f: RcMut<Expr>,
+
+        /// Arguments to the function; e.g. [x, y] in (f x y)
         args: Vec<Expr>,
-    }, // (f x y), (+ 1 2)
+    },
 
-    // Extended expressions (improvements over parser_draft)
-    // Note: parser_draft suggests these can be desugared:
-    // - Match can be expressed as application of lambda
-    // - Do can be desugared to regular monadic expressions
-
-    // Pattern matching (can be desugared to lambda application)
-    // Uses Rule from parser_draft instead of MatchArm
+    /// Pattern matching expression; e.g. (match x (Just y) y Nothing 0)
+    /// - Will be desugared to application of lambda
     Match {
+        /// Expression being matched; e.g. x in (match x ...)
         expr: RcMut<Expr>,
-        rules: Vec<Rule>, // Use Rule instead of MatchArm
-    }, // (match x (Just y) y Nothing 0)
 
-    // Do notation (can be desugared to monadic expressions)
+        /// Pattern matching rules; e.g. [(Just y) -> y, Nothing -> 0] in (match x (Just y) y Nothing 0)
+        rules: Vec<Rule>,
+    },
+
+    /// Monadic do notation; e.g. (do (:= x getValue) (return x))
+    /// - Will be desugared to nested applications of bind and return
     Do {
+        /// Sequence of do statements; e.g. [(:= x getValue), (return x)] in (do (:= x getValue) (return x))
         stmts: Vec<DoStmt>,
-    }, // (do (:= x getValue) (return (+ x 1)))
+    },
 }
 
+/// Literal expressions - primitive values that evaluate to themselves; e.g. 42 in (+ 42 x)
 #[derive(Debug, Clone, PartialEq)]
 pub enum LiteralExpr {
-    Unit,           // ()
-    Bool(bool),     // True, False
-    I64(i64),       // 42, -17
-    F64(f64),       // 3.14, -2.5
-    String(String), // "hello world"
-    Char(char),     // 'a', '\n'
-                    // Note: List and Tuple are NOT literals - they are constructor data
-                    // List: '(1 2 3) -> App { f: List, args: [1, 2, 3] }
-                    // Tuple: #(a b c) -> App { f: Tuple, args: [a, b, c] }
+    /// Unit value; e.g. Unit in (lambda x Unit)
+    Unit,
+
+    /// Boolean literal; e.g. True in (if True x y)
+    Bool(bool),
+
+    /// 64-bit signed integer literal; e.g. 42 in (+ 42 x)
+    I64(i64),
+
+    /// 64-bit floating point literal; e.g. 3.14 in (* 3.14 r)
+    F64(f64),
+
+    /// String literal; e.g. "hello" in (print "hello")
+    String(String),
+
+    /// Character literal; e.g. 'a' in (isLetter 'a')
+    Char(char),
+    // Note: List and Tuple are NOT literals - they are constructor applications
+    // List: '(1 2 3) -> App { f: List, args: [1, 2, 3] }
+    // Tuple: #(a b c) -> App { f: Tuple, args: [a, b, c] }
 }
 
+/// Do statement types for monadic computation; e.g. (:= x getValue) in (do (:= x getValue) (return x))
 #[derive(Debug, Clone, PartialEq)]
 pub enum DoStmt {
-    Bind { pat: RcMut<Pattern>, expr: Expr }, // (:= x getValue)
-    Expr(Expr),                               // (putStrLn "hello")
+    /// Monadic bind statement; e.g. (:= x getValue) in (do (:= x getValue) (return x))
+    /// - Will be desugared to application of bind
+    Bind {
+        /// Pattern to bind result to; e.g. x in (:= x getValue)
+        pat: RcMut<Pattern>,
+
+        /// Monadic expression to evaluate; e.g. getValue in (:= x getValue)
+        expr: Expr,
+    },
+
+    /// Expression statement in do block; e.g. (putStrLn "hello") in (do (putStrLn "hello") (return Unit))
+    Expr(Expr),
 }
 
 // ===========================================================
 // Type Expressions
 // ===========================================================
 
+/// Type expressions for type annotations and signatures; e.g. Int in (: x Int)
 #[derive(Debug, Clone, PartialEq)]
 pub enum TypeExpr {
-    Var(IdentPath), // a, b (simple type variables, NOT field access)
+    /// Type variable; e.g. a in (: f (a -> a))
+    Var(IdentPath),
+
+    /// Type constructor application; e.g. (Maybe a) in (: x (Maybe a))
     Ctor {
+        /// Type constructor identifier; e.g. Maybe in (Maybe a)
         ident: IdentPath,
+
+        /// Type arguments; e.g. [a] in (Maybe a)
         args: Vec<TypeExpr>,
-    }, // Int, (Maybe a), (List String)
+    },
+
+    /// Universal quantification (forall); e.g. (forall a (Maybe a)) in (: x (forall a (Maybe a)))
     Forall {
+        /// Quantified type parameters; e.g. [a] in (forall a (Maybe a))
         type_params: Vec<Ident>,
+
+        /// Type expression with quantified variables; e.g. (Maybe a) in (forall a (Maybe a))
         expr: RcMut<TypeExpr>,
-    }, // (forall a (Maybe a))
+    },
 }
 
 // ===========================================================
 // Module Structure (following parser_draft.rs exactly)
 // ===========================================================
 
+/// Module item types - top-level definitions in modules; e.g. (= f x (+ x 1)) in module scope
 #[derive(Debug, Clone, PartialEq)]
 pub enum ModuleItem {
-    TypedLambda(RcMut<TypedLambda>), // Function definitions with optional type annotations
-    TypeCtor(RcMut<TypeCtor>),       // (data Name ...) - data type definition
-    Trait(RcMut<Trait>),             // (trait Name ...) - trait definition
-    Module(RcMut<Module>),           // (mod Name ...) - nested module
-    Use(UseItem),                    // (use ...) - use declaration (improvement over parser_draft)
+    /// Function definition with optional type annotation; e.g. (= factorial (n : Int) ...)
+    TypedLambda(RcMut<TypedLambda>),
+
+    /// Data type definition; e.g. (data (Maybe a) Nothing (Just a))
+    TypeCtor(RcMut<TypeCtor>),
+
+    /// Trait definition; e.g. (trait (Show a) (show : (a -> String)))
+    Trait(RcMut<Trait>),
+
+    /// Nested module definition; e.g. (mod Utils ...)
+    Module(RcMut<Module>),
+
+    /// Import/use declaration; e.g. (use std.io)
+    Use(UseItem),
 }
 
+/// Type constructor item - type pattern for constructor; e.g. Just in (data (Maybe a) Nothing (Just a))
 pub type TypeCtorItem = RcMut<TypePattern>;
 
+/// Trait item types for trait definitions; e.g. (show : (a -> String)) in trait definition
 #[derive(Debug, Clone, PartialEq)]
 pub enum TraitItem {
-    // Required items (no implementation)
-    RequiredTypeCtor(Vec<TypeExpr>),    // Required associated type
-    RequiredLambda(RcMut<TypePattern>), // Required method signature
+    /// Required associated type with constraints; e.g. (type Key) in trait definition
+    RequiredTypeCtor(Vec<TypeExpr>),
 
-    // Provided items (with implementation)
-    TypedLambda(RcMut<TypedLambda>), // Default method implementation
-    TypeCtor(RcMut<TypeCtor>),       // Associated type definition
+    /// Required method signature; e.g. (show : (a -> String)) in trait definition
+    RequiredLambda(RcMut<TypePattern>),
+
+    /// Default method implementation; e.g. (= show x (defaultShow x)) in trait definition
+    TypedLambda(RcMut<TypedLambda>),
+
+    /// Associated type definition with default; e.g. (type Key = String) in trait definition
+    TypeCtor(RcMut<TypeCtor>),
 }
 
 // ===========================================================
 // Core Structures (following parser_draft.rs design exactly)
 // ===========================================================
 
+/// Module containing named items with scope resolution; e.g. (mod MyMod ...) creates Module with scope mapping names to items
 #[derive(Debug, Clone, PartialEq)]
 pub struct Module {
     pub scope: HashMap<Ident, ModuleItem>, // Name -> Item mapping
 }
 
+/// Function with optional explicit type annotation; e.g. (= add (x : Int) (y : Int) : Int (+ x y))
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypedLambda {
     pub type_pattern: RcMut<TypePattern>, // Optional type annotation
     pub lambda: Lambda,                   // The actual function
 }
 
+/// Data type constructor definition; e.g. (data (Maybe a) Nothing (Just a))
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypeCtor {
     pub type_params_pattern: RcMut<TypePattern>, // Type parameters with constraints
     pub scope: HashMap<Ident, TypeCtorItem>,     // Constructor name -> Pattern mapping
 }
 
+/// Trait definition with required and provided items; e.g. (trait (Show a) (show : (a -> String)))
 #[derive(Debug, Clone, PartialEq)]
 pub struct Trait {
     pub type_params_pattern: RcMut<TypePattern>, // Type parameters with constraints
@@ -193,30 +312,35 @@ pub struct Trait {
 // Lambda and Rule System (from parser_draft.rs)
 // ===========================================================
 
+/// Function implementation - either single rule or multiple rules; e.g. (lambda x (+ x 1)) uses Mono, pattern matching uses Poly
 #[derive(Debug, Clone, PartialEq)]
 pub enum Lambda {
     Mono(RcMut<Rule>), // Single pattern-matching rule
     Poly(Vec<Rule>),   // Multiple pattern-matching rules
 }
 
+/// Single pattern-matching rule in a function; e.g. (x => (+ x 1)) in lambda definition
 #[derive(Debug, Clone, PartialEq)]
 pub struct Rule {
     pub pattern: RcMut<Pattern>, // Pattern to match
     pub expr: RcMut<Expr>,       // Expression to evaluate
 }
 
+/// Pattern with optional guard conditions; e.g. x in (lambda x (+ x 1)) or (x | (> x 0)) with guard
 #[derive(Debug, Clone, PartialEq)]
 pub struct Pattern {
     pub pats: RcMut<Pats>, // The actual patterns (may be unparsed initially)
     pub guard: Vec<Expr>,  // Guard conditions
 }
 
+/// Pattern container - unparsed until arity information available; e.g. Unparsed((x y z)) or Parsed([x, y, z])
 #[derive(Debug, Clone, PartialEq)]
 pub enum Pats {
     Unparsed(RcMut<SExpr>), // Unparsed S-expression (need arity info to parse)
     Parsed(Vec<Pattern>),   // Parsed pattern list
 }
 
+/// Individual pattern element in value-level matching; e.g. x in (lambda x (+ x 1)) or (Just x) in pattern match
 #[derive(Debug, Clone, PartialEq)]
 pub enum Pat {
     Var(Ident),                                // Variable pattern
@@ -226,18 +350,21 @@ pub enum Pat {
     Ellipsis,                                  // ... pattern
 }
 
+/// Type-level pattern with constraints; e.g. (a : Show) in trait definitions or (Maybe a) in type signatures
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypePattern {
     pub pats: RcMut<TypePats>, // Type patterns
     pub guard: Vec<TypeExpr>,  // Type constraints
 }
 
+/// Type pattern container - unparsed until context available; e.g. Unparsed((Maybe a)) or Parsed([Maybe, a])
 #[derive(Debug, Clone, PartialEq)]
 pub enum TypePats {
     Unparsed(RcMut<SExpr>),   // Unparsed S-expression
     Parsed(Vec<TypePattern>), // Parsed type pattern list
 }
 
+/// Individual type pattern element; e.g. a in type variables or (Maybe a) in type constructor applications
 #[derive(Debug, Clone, PartialEq)]
 pub enum TypePat {
     Var(Ident), // Type variable
@@ -252,13 +379,15 @@ pub enum TypePat {
 // Use/Import System (following syntax-design.lisp)
 // ===========================================================
 
+/// Import declaration supporting simple names, paths, and selective imports; e.g. (use math) or (use (collections:: Map Set))
 #[derive(Debug, Clone, PartialEq)]
 pub enum UseItem {
     Ident(Ident),         // math in (use math)
     IdentPath(IdentPath), // math::statistics in (use math::statistics)
     IdentTree(IdentTree), // (collections:: Map Set) in (use (collections:: Map Set))
-} // follows design: (use database), (use prelude::..), (use (collections:: Map Set))
+}
 
+/// Function rule with patterns, guard, and body; e.g. ((x y) (> x 0) (+ x y)) in function definition
 #[derive(Debug, Clone, PartialEq)]
 pub struct FunctionRule {
     pub patterns: Vec<Pattern>,
@@ -266,41 +395,45 @@ pub struct FunctionRule {
     pub body: Expr,
 }
 
+/// Constructor definition with name and fields; e.g. (Person name age) in data type definition
 #[derive(Debug, Clone, PartialEq)]
 pub struct Constructor {
     pub name: Ident,
     pub fields: Vec<ConstructorField>,
 }
 
+/// Constructor field types for data definitions; e.g. Int in (Point Int Int) or (name : String) in records
 #[derive(Debug, Clone, PartialEq)]
 pub enum ConstructorField {
-    // Positional field
-    Positional(TypeExpr), // Int in (Point Int Int)
+    /// Positional field; e.g. Int in (Point Int Int)
+    Positional(TypeExpr),
 
-    // Named field (for records)
-    Named { name: Ident, type_expr: TypeExpr }, // { name: String, age: Int }
+    /// Named field for records; e.g. (name : String) in record definition
+    Named { name: Ident, type_expr: TypeExpr },
 }
 
 // ===========================================================
 // Kinds
 // ===========================================================
 
+/// Kind system for type-level computation; e.g. * for base types or (* -> *) for type constructors
 #[derive(Debug, Clone, PartialEq)]
 pub enum Kind {
-    // Base kind *
-    Star, // * for types like Int, Bool
+    /// Base kind for concrete types; e.g. * for Int, Bool
+    Star,
 
-    // Function kind
-    Arrow { param: Box<Kind>, result: Box<Kind> }, // (* -> *) for Maybe, List
+    /// Function kind for type constructors; e.g. (* -> *) for Maybe, List
+    Arrow { param: Box<Kind>, result: Box<Kind> },
 
-    // Constraint kind
-    Constraint, // for type class constraints
+    /// Constraint kind for type class constraints; e.g. for Show, Eq constraints
+    Constraint,
 }
 
 // ===========================================================
 // Parser Context and Functions
 // ===========================================================
 
+/// Parser context for maintaining state during parsing; e.g. used in parse_module function
 pub struct ParseContext {
     // Context for parsing - will be filled when implementing parser
 }
@@ -318,7 +451,7 @@ pub fn parse_module(_ctx: &mut ParseContext, _s_exprs: &[RcMut<SExpr>]) -> Resul
 }
 
 // Parse a single module item from an S-expression
-pub fn parse_module_item(ctx: &mut ParseContext, s_expr: &SExpr) -> Result<ModuleItem, String> {
+pub fn parse_module_item(_ctx: &mut ParseContext, _s_expr: &SExpr) -> Result<ModuleItem, String> {
     // TODO: Implement parsing for new AST structure
     // For now, return error to get code compiling
     Err("parse_module_item not implemented for new AST structure".to_string())
@@ -445,7 +578,7 @@ pub fn parse_do_stmt(_ctx: &mut ParseContext, s_expr: &SExpr) -> Result<DoStmt, 
 pub fn parse_expr(_ctx: &mut ParseContext, s_expr: &SExpr) -> Result<Expr, String> {
     match s_expr {
         // Literal values
-        SExpr::I64(value) => Ok(Expr::Literal(LiteralExpr::I64(*value))),
+        SExpr::i64(value) => Ok(Expr::Literal(LiteralExpr::i64(*value))),
         SExpr::F64(value) => Ok(Expr::Literal(LiteralExpr::F64(*value))),
         SExpr::Bool(value) => Ok(Expr::Literal(LiteralExpr::Bool(*value))),
         SExpr::Char(value) => Ok(Expr::Literal(LiteralExpr::Char(*value))),
@@ -652,7 +785,7 @@ pub fn parse_expr(_ctx: &mut ParseContext, s_expr: &SExpr) -> Result<Expr, Strin
 pub fn parse_pattern(_ctx: &mut ParseContext, s_expr: &SExpr) -> Result<Pattern, String> {
     match s_expr {
         // Literal patterns
-        SExpr::I64(value) => Ok(Pattern::Literal(LiteralExpr::I64(*value))),
+        SExpr::i64(value) => Ok(Pattern::Literal(LiteralExpr::i64(*value))),
         SExpr::F64(value) => Ok(Pattern::Literal(LiteralExpr::F64(*value))),
         SExpr::Bool(value) => Ok(Pattern::Literal(LiteralExpr::Bool(*value))),
         SExpr::Char(value) => Ok(Pattern::Literal(LiteralExpr::Char(*value))),
@@ -884,7 +1017,7 @@ mod tests {
     fn test_basic_compilation() {
         // Just test that we can create basic AST nodes
         let _module = Module {
-            scope: HashMap::new(),
+            scope: HashMap::default(),
         };
 
         // Test TypedLambda creation
@@ -925,7 +1058,7 @@ mod tests {
         let mut ctx = ParseContext::new();
 
         let expr = parse_expr(&mut ctx, &s_exprs[0].get()).unwrap();
-        assert_eq!(expr, Expr::Literal(LiteralExpr::I64(42)));
+        assert_eq!(expr, Expr::Literal(LiteralExpr::i64(42)));
     }
 
     #[test]
@@ -1038,9 +1171,9 @@ mod tests {
         match expr {
             Expr::Literal(LiteralExpr::List(elems)) => {
                 assert_eq!(elems.len(), 3);
-                assert_eq!(elems[0], Expr::Literal(LiteralExpr::I64(1)));
-                assert_eq!(elems[1], Expr::Literal(LiteralExpr::I64(2)));
-                assert_eq!(elems[2], Expr::Literal(LiteralExpr::I64(3)));
+                assert_eq!(elems[0], Expr::Literal(LiteralExpr::i64(1)));
+                assert_eq!(elems[1], Expr::Literal(LiteralExpr::i64(2)));
+                assert_eq!(elems[2], Expr::Literal(LiteralExpr::i64(3)));
             }
             _ => panic!("Expected List literal"),
         }
@@ -1055,7 +1188,7 @@ mod tests {
         match expr {
             Expr::Literal(LiteralExpr::Tuple(elems)) => {
                 assert_eq!(elems.len(), 3);
-                assert_eq!(elems[0], Expr::Literal(LiteralExpr::I64(1)));
+                assert_eq!(elems[0], Expr::Literal(LiteralExpr::i64(1)));
                 assert_eq!(
                     elems[1],
                     Expr::Literal(LiteralExpr::String("two".to_string()))
@@ -1131,8 +1264,8 @@ mod tests {
 
                 // Should have two arguments: 3 and 4
                 assert_eq!(args.len(), 2);
-                assert_eq!(args[0], Expr::Literal(LiteralExpr::I64(3)));
-                assert_eq!(args[1], Expr::Literal(LiteralExpr::I64(4)));
+                assert_eq!(args[0], Expr::Literal(LiteralExpr::i64(3)));
+                assert_eq!(args[1], Expr::Literal(LiteralExpr::i64(4)));
             }
             _ => panic!("Expected App expression"),
         }
@@ -1499,8 +1632,8 @@ mod tests {
                 }
                 assert_eq!(binding.patterns.len(), 0); // Simple data binding has no patterns
                 match binding.body {
-                    Expr::Literal(LiteralExpr::I64(42)) => {} // Correct
-                    _ => panic!("Expected I64(42) literal"),
+                    Expr::Literal(LiteralExpr::i64(42)) => {} // Correct
+                    _ => panic!("Expected i64(42) literal"),
                 }
             }
             _ => panic!("Expected Binding module item"),
@@ -1919,7 +2052,7 @@ mod tests {
                     }
                     _ => panic!("Expected Constructor pattern for Nothing"),
                 }
-                assert_eq!(arms[0].body, Expr::Literal(LiteralExpr::I64(0)));
+                assert_eq!(arms[0].body, Expr::Literal(LiteralExpr::i64(0)));
 
                 // Second arm: (Just y) -> y
                 match &arms[1].pattern {
