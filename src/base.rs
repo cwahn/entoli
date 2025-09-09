@@ -15,12 +15,12 @@ impl<T> RcMut<T> {
         Self(Rc::new(RefCell::new(value)))
     }
 
-    pub fn get(&self) -> Ref<T> {
+    pub fn get(&self) -> Ref<'_, T> {
         self.0.borrow()
     }
 
     // Can use this if only use in single thread
-    pub fn get_mut(&self) -> RefMut<T> {
+    pub fn get_mut(&self) -> RefMut<'_, T> {
         self.0.borrow_mut()
     }
 }

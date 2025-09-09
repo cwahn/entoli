@@ -17,62 +17,48 @@ pub enum Ident {
 
     /// Quote operator for lists; e.g. ' in ('(1 2 3))
     Quote,
-
     /// Nil value; e.g. Nil
     Nil,
-
     /// Tuple constructor; e.g. #3 in (#(a b c))
     Hash(u8),
-
-    // Arithmetic operators
-    /// Addition operator; e.g. + in (+ 2 3)
-    Add,
-
-    /// Subtraction operator; e.g. - in (- 5 2)
-    Sub,
-
-    /// Multiplication operator; e.g. * in (* 4 3)
-    Mul,
-
-    /// Division operator; e.g. / in (/ 8 2)
-    Div,
-
-    /// Modulus operator; e.g. % in (% 7 3)
-    Modulus,
 
     // Comparison operators
     /// Equality operator; e.g. == in (== x y)
     Eq,
-
     /// Inequality operator; e.g. != in (!= x y)
     Ne,
-
     /// Greater than operator; e.g. > in (> x y)
     Gt,
-
     /// Greater than or equal operator; e.g. >= in (>= x y)
     Ge,
-
     /// Less than operator; e.g. < in (< x y)
     Lt,
-
     /// Less than or equal operator; e.g. <= in (<= x y)
     Le,
 
     // Logical operators
     /// Logical AND operator; e.g. & in (& x y)
     And,
-
     /// Logical OR operator; e.g. | in (| x y)
     Or,
-
     /// Logical NOT operator; e.g. ! in (! flag)
     Not,
+
+    // Arithmetic operators
+    /// Addition operator; e.g. + in (+ 2 3)
+    Add,
+    /// Subtraction operator; e.g. - in (- 5 2)
+    Sub,
+    /// Multiplication operator; e.g. * in (* 4 3)
+    Mul,
+    /// Division operator; e.g. / in (/ 8 2)
+    Div,
+    /// Modulus operator; e.g. % in (% 7 3)
+    Modulus,
 
     // Other operators
     /// Dot operator; e.g. . in (. f g)
     Dot,
-
     // Unit type/value
     /// Unit type and value; e.g. ()
     Unit,
@@ -80,26 +66,20 @@ pub enum Ident {
     // Built-in types
     /// Boolean type; e.g. Bool in (: x Bool)
     BoolType,
-
     /// 64-bit integer type; e.g. I64 in (: count I64)
     I64Type,
-
     /// 64-bit floating point type; e.g. F64 in (: price F64)
     F64Type,
-
     /// String type; e.g. Str in (: name Str)
     StrType,
 
     // User-defined identifiers
     /// Constructor identifier (starts with uppercase); e.g. Just in (Just x)
     CtorIdent(SourceRef),
-
     /// Variable identifier (starts with lowercase or underscore); e.g. x in (+ x y)
     VarIdent(SourceRef),
-
     /// Custom operator identifier; e.g. >>= in (>>= m f)
     OpIdent(SourceRef),
-
     /// Field accessor with dot prefix; e.g. .name in (.name person)
     FieldAccessor(SourceRef),
 }
@@ -113,7 +93,6 @@ pub struct IdentPath(pub RcMut<Vec<Ident>>);
 pub struct IdentTree {
     /// The path prefix for the import; e.g. collections in (collections:: Map Set)
     pub head: IdentPath,
-
     /// Nested items to import from the path; e.g. [Map, Set] in (collections:: Map Set)
     pub tail: RcMut<Vec<IdentTree>>,
 }
@@ -411,10 +390,8 @@ pub struct ConstructorField {
 pub enum Kind {
     /// Base kind for concrete types; e.g. * for Int, Bool
     Star,
-
     /// Function kind for type constructors; e.g. (* -> *) for Maybe, List
     Arrow { param: Box<Kind>, result: Box<Kind> },
-
     /// Constraint kind for type class constraints; e.g. for Show, Eq constraints
     Constraint,
 }
@@ -452,444 +429,120 @@ pub fn parse_literal_expr(_ctx: &mut ParseContext, s_expr: &SExpr) -> Result<Lit
     match s_expr {
         SExpr::Unit => Ok(LiteralExpr::Unit),
         SExpr::Bool(value) => Ok(LiteralExpr::Bool(*value)),
+        SExpr::Char(value) => Ok(LiteralExpr::Char(*value)),
         SExpr::I64(value) => Ok(LiteralExpr::I64(*value)),
         SExpr::F64(value) => Ok(LiteralExpr::F64(*value)),
         SExpr::String(src_ref) => Ok(LiteralExpr::String(src_ref.resolve().to_string())),
-        SExpr::Char(value) => Ok(LiteralExpr::Char(*value)),
-        _ => Err(format!("Expected literal, got {:?}", s_expr))
+        _ => Err(format!("Expected literal, got {s_expr:?}")),
     }
 }
 
-/*
-// Old parsing code - needs to be rewritten for new AST structure
-pub fn parse_module_item_old(ctx: &mut ParseContext, s_expr: &SExpr) -> Result<ModuleItem, String> {
+pub fn parse_var_expr(_ctx: &mut ParseContext, s_expr: &SExpr) -> Result<IdentPath, String> {
     match s_expr {
-        SExpr::List(elements) => {
-            if elements.is_empty() {
-                return Err("Empty module item list".to_string());
-            }
-
-            let first = &*elements[0].get();
-            match first {
-                // Type annotation: (: name type_expr)
-                SExpr::TypeAnnot => {
-                    if elements.len() != 3 {
-                        return Err(format!("Type annotation requires exactly 3 elements, got {}", elements.len()));
-                    }
-
-                    // Parse the function name
-                    let name = match &*elements[1].get() {
-                        SExpr::VarIdent(var_ident) => Ident::VarIdent(var_ident.0.clone()),
-                        _ => return Err("Type annotation name must be a variable identifier".to_string()),
-                    };
-
-                    // Parse the type expression
-                    let type_expr = parse_type_expr(ctx, &elements[2].get())?;
-
-                    let type_annot = TypeAnnot { name, type_expr };
-                    Ok(ModuleItem::TypeAnnot(type_annot))
-                }
-
-                // Function/data binding: (= name patterns body) or (= name body)
-                SExpr::Binding => {
-                    if elements.len() < 3 || elements.len() > 4 {
-                        return Err(format!("Binding requires 3 or 4 elements, got {}", elements.len()));
-                    }
-
-                    // Parse binding name
-                    let name = match &*elements[1].get() {
-                        SExpr::VarIdent(var_ident) => Ident::VarIdent(var_ident.0.clone()),
-                        _ => return Err("Binding name must be a variable identifier".to_string()),
-                    };
-
-                    if elements.len() == 3 {
-                        // Simple data binding: (= name value)
-                        let body = parse_expr(ctx, &elements[2].get())?;
-
-                        let binding = Binding {
-                            name,
-                            type_annotation: None,
-                            patterns: vec![], // empty patterns = simple data binding
-                            body,
-                        };
-
-                        Ok(ModuleItem::Binding(binding))
-                    } else {
-                        // Function binding: (= name patterns body)
-                        let mut patterns = Vec::new();
-                        match &*elements[2].get() {
-                            SExpr::List(pattern_elements) => {
-                                for pattern_element in pattern_elements.iter() {
-                                    patterns.push(parse_pattern(ctx, &pattern_element.get())?);
-                                }
-                            }
-                            _ => return Err("Expected list of patterns for function parameters".to_string()),
-                        }
-
-                        // Parse body from the fourth element
-                        let body = parse_expr(ctx, &elements[3].get())?;
-
-                        let binding = Binding {
-                            name,
-                            type_annotation: None, // Type annotation would be set during semantic analysis
-                            patterns,
-                            body,
-                        };
-
-                        Ok(ModuleItem::Binding(binding))
-                    }
-                }
-
-                // TODO: Add other module item types (data definitions, traits, etc.)
-                _ => {
-                    Err(format!("Unsupported module item type starting with {:?}", first))
-                }
-            }
-        }
-        _ => {
-            Err(format!("Expected list for module item, got {:?}", s_expr))
-        }
-    }
-}
-
-// Parse a do statement from an S-expression
-pub fn parse_do_stmt(_ctx: &mut ParseContext, s_expr: &SExpr) -> Result<DoStmt, String> {
-    match s_expr {
-        // List forms: either binding or expression
-        SExpr::List(elems) => {
-            if elems.len() == 3 {
-                // Check if it's a binding in SPO form (:= pattern expr)
-                if let SExpr::DoBinding = &*elems[0].get() {
-                    let pat = parse_pattern(_ctx, &elems[1].get())?;
-                    let expr = parse_expr(_ctx, &elems[2].get())?;
-                    return Ok(DoStmt::Bind { pat, expr });
-                }
-            }
-            // Regular expression statement
-            let expr = parse_expr(_ctx, s_expr)?;
-            Ok(DoStmt::Expr(expr))
-        }
-        _ => {
-            // Single expression statement
-            let expr = parse_expr(_ctx, s_expr)?;
-            Ok(DoStmt::Expr(expr))
-        }
-    }
-}
-
-// Parse an expression from an S-expression
-pub fn parse_expr(_ctx: &mut ParseContext, s_expr: &SExpr) -> Result<Expr, String> {
-    match s_expr {
-        // Literal values
-        SExpr::i64(value) => Ok(Expr::Literal(LiteralExpr::i64(*value))),
-        SExpr::F64(value) => Ok(Expr::Literal(LiteralExpr::F64(*value))),
-        SExpr::Bool(value) => Ok(Expr::Literal(LiteralExpr::Bool(*value))),
-        SExpr::Char(value) => Ok(Expr::Literal(LiteralExpr::Char(*value))),
-        SExpr::String(src_ref) => Ok(Expr::Literal(LiteralExpr::String(
-            src_ref.resolve().to_string(),
-        ))),
-        SExpr::Unit => Ok(Expr::Literal(LiteralExpr::Unit)),
-
         // Variable identifiers
-        SExpr::VarIdent(var_ident) => {
-            let ident_path = IdentPath(vec![Ident::VarIdent(var_ident.0.clone())]);
-            Ok(Expr::Var(ident_path))
-        }
-        SExpr::CtorIdent(ctor_ident) => {
-            // Special case for boolean literals
-            let content = ctor_ident.0.resolve();
-            match content {
-                "True" => Ok(Expr::Literal(LiteralExpr::Bool(true))),
-                "False" => Ok(Expr::Literal(LiteralExpr::Bool(false))),
-                _ => {
-                    let ident_path = IdentPath(vec![Ident::CtorIdent(ctor_ident.0.clone())]);
-                    Ok(Expr::Var(ident_path))
-                }
+        SExpr::VarIdent(var_ident) => Ok(IdentPath(RcMut::new(vec![Ident::VarIdent(
+            var_ident.0.clone(),
+        )]))),
+
+        // Constructor identifiers (including special True/False which we handle elsewhere)
+        SExpr::CtorIdent(ctor_ident) => Ok(IdentPath(RcMut::new(vec![Ident::CtorIdent(
+            ctor_ident.0.clone(),
+        )]))),
+
+        // Operators as identifiers
+        SExpr::Add => Ok(IdentPath(RcMut::new(vec![Ident::Add]))),
+        SExpr::Sub => Ok(IdentPath(RcMut::new(vec![Ident::Sub]))),
+        SExpr::Asterisk => Ok(IdentPath(RcMut::new(vec![Ident::Mul]))),
+        SExpr::Div => Ok(IdentPath(RcMut::new(vec![Ident::Div]))),
+        SExpr::Modulus => Ok(IdentPath(RcMut::new(vec![Ident::Modulus]))),
+        SExpr::Eq => Ok(IdentPath(RcMut::new(vec![Ident::Eq]))),
+        SExpr::Ne => Ok(IdentPath(RcMut::new(vec![Ident::Ne]))),
+        SExpr::Lt => Ok(IdentPath(RcMut::new(vec![Ident::Lt]))),
+        SExpr::Le => Ok(IdentPath(RcMut::new(vec![Ident::Le]))),
+        SExpr::Gt => Ok(IdentPath(RcMut::new(vec![Ident::Gt]))),
+        SExpr::Ge => Ok(IdentPath(RcMut::new(vec![Ident::Ge]))),
+        SExpr::And => Ok(IdentPath(RcMut::new(vec![Ident::And]))),
+        SExpr::Or => Ok(IdentPath(RcMut::new(vec![Ident::Or]))),
+        SExpr::Not => Ok(IdentPath(RcMut::new(vec![Ident::Not]))),
+        SExpr::Arrow => Ok(IdentPath(RcMut::new(vec![Ident::Arrow]))),
+
+        // Identifier paths
+        SExpr::IdentPath(path_elems) => {
+            let mut idents = Vec::new();
+            for elem in path_elems.iter() {
+                let ident_path = parse_var_expr(_ctx, &elem.get())?;
+                // Extract the single ident from the path (since individual path components are single idents)
+                idents.extend(ident_path.0.get().iter().cloned());
             }
+            Ok(IdentPath(RcMut::new(idents)))
         }
 
-        // Arithmetic and other operators
-        SExpr::Add
-        | SExpr::Sub
-        | SExpr::Asterisk
-        | SExpr::Div
-        | SExpr::Modulus
-        | SExpr::Eq
-        | SExpr::Ne
-        | SExpr::Lt
-        | SExpr::Le
-        | SExpr::Gt
-        | SExpr::Ge
-        | SExpr::And
-        | SExpr::Or
-        | SExpr::Not => {
-            // Convert operators to their proper Ident variants
-            let ident = match s_expr {
-                SExpr::Add => Ident::Add,
-                SExpr::Sub => Ident::Sub,
-                SExpr::Asterisk => Ident::Mul,
-                SExpr::Div => Ident::Div,
-                SExpr::Modulus => Ident::Modulus,
-                SExpr::Eq => Ident::Eq,
-                SExpr::Ne => Ident::Ne,
-                SExpr::Lt => Ident::Lt,
-                SExpr::Le => Ident::Le,
-                SExpr::Gt => Ident::Gt,
-                SExpr::Ge => Ident::Ge,
-                SExpr::And => Ident::And,
-                SExpr::Or => Ident::Or,
-                SExpr::Not => Ident::Not,
-                _ => unreachable!(),
-            };
-            let ident_path = IdentPath(vec![ident]);
-            Ok(Expr::Var(ident_path))
-        }
-
-        // List expressions - function applications, special forms, etc.
-        SExpr::List(elems) => {
-            if elems.is_empty() {
-                return Err("Empty list expression not allowed".to_string());
-            }
-
-            let first = &*elems[0].get();
-            match first {
-                // Lambda expressions
-                SExpr::Lambda => {
-                    if elems.len() < 3 {
-                        return Err(
-                            "Lambda expression requires at least parameters and body".to_string()
-                        );
-                    }
-
-                    // Parse parameters
-                    let params = match &*elems[1].get() {
-                        // Multiple parameters: (lambda (x y) body)
-                        SExpr::List(param_list) => {
-                            let mut params = Vec::new();
-                            for param in param_list.iter() {
-                                params.push(parse_pattern(_ctx, &param.get())?);
-                            }
-                            params
-                        }
-                        // Single parameter: (lambda x body)
-                        _ => {
-                            vec![parse_pattern(_ctx, &elems[1].get())?]
-                        }
-                    };
-
-                    // Parse body (could be multiple expressions, treat as sequence)
-                    let body = if elems.len() == 3 {
-                        parse_expr(_ctx, &elems[2].get())?
-                    } else {
-                        // Multiple expressions - for now, just take the last one
-                        // TODO: Handle proper sequential expressions
-                        parse_expr(_ctx, &elems[elems.len() - 1].get())?
-                    };
-
-                    Ok(Expr::Lambda {
-                        params,
-                        body: Box::new(body),
-                    })
-                }
-
-                // Match expressions
-                SExpr::Match => {
-                    if elems.len() < 3 {
-                        return Err(
-                            "Match expression requires expression and at least one arm".to_string()
-                        );
-                    }
-
-                    let expr = parse_expr(_ctx, &elems[1].get())?;
-                    let mut arms = Vec::new();
-
-                    // Parse match arms (each arm is a list with pattern and body)
-                    for i in 2..elems.len() {
-                        match &*elems[i].get() {
-                            SExpr::List(arm_elems) => {
-                                if arm_elems.len() < 2 {
-                                    return Err("Match arm requires pattern and body".to_string());
-                                }
-                                let pattern = parse_pattern(_ctx, &arm_elems[0].get())?;
-                                let body = parse_expr(_ctx, &arm_elems[1].get())?;
-                                arms.push(MatchArm {
-                                    pattern,
-                                    guard: None, // TODO: Handle guards
-                                    body,
-                                });
-                            }
-                            _ => return Err("Match arm must be a list".to_string()),
-                        }
-                    }
-
-                    Ok(Expr::Match {
-                        expr: Box::new(expr),
-                        arms,
-                    })
-                }
-
-                // Do expressions
-                SExpr::Do => {
-                    let mut stmts = Vec::new();
-
-                    for i in 1..elems.len() {
-                        let stmt = parse_do_stmt(_ctx, &elems[i].get())?;
-                        stmts.push(stmt);
-                    }
-
-                    Ok(Expr::Do { stmts })
-                }
-
-                // Tuple construction with hash
-                SExpr::Hash(_) => {
-                    let mut tuple_elems = Vec::new();
-                    // Skip the hash element, parse the rest as tuple elems
-                    for i in 1..elems.len() {
-                        tuple_elems.push(parse_expr(_ctx, &elems[i].get())?);
-                    }
-                    Ok(Expr::Literal(LiteralExpr::Tuple(tuple_elems)))
-                }
-
-                // Function application or operator application
-                _ => {
-                    let func = parse_expr(_ctx, &elems[0].get())?;
-                    let mut args = Vec::new();
-
-                    for i in 1..elems.len() {
-                        args.push(parse_expr(_ctx, &elems[i].get())?);
-                    }
-
-                    Ok(Expr::App {
-                        func: Box::new(func),
-                        args,
-                    })
-                }
-            }
-        }
-
-        // Quoted lists (list literals)
-        SExpr::QuoteList(elems) => {
-            let mut list_elems = Vec::new();
-            for element in elems.iter() {
-                list_elems.push(parse_expr(_ctx, &element.get())?);
-            }
-            Ok(Expr::Literal(LiteralExpr::List(list_elems)))
-        }
-
-        SExpr::DoBinding => Err("DoBinding (:=) should only appear inside do blocks".to_string()),
-
-        _ => {
-            unimplemented!("parse_expr for {:?} not implemented yet", s_expr)
-        }
+        _ => Err(format!("Expected variable/identifier, got {:?}", s_expr)),
     }
 }
 
-// Parse a pattern from an S-expression
-pub fn parse_pattern(_ctx: &mut ParseContext, s_expr: &SExpr) -> Result<Pattern, String> {
+pub fn parse_pat(_ctx: &mut ParseContext, s_expr: &SExpr) -> Result<Pat, String> {
     match s_expr {
-        // Literal patterns
-        SExpr::i64(value) => Ok(Pattern::Literal(LiteralExpr::i64(*value))),
-        SExpr::F64(value) => Ok(Pattern::Literal(LiteralExpr::F64(*value))),
-        SExpr::Bool(value) => Ok(Pattern::Literal(LiteralExpr::Bool(*value))),
-        SExpr::Char(value) => Ok(Pattern::Literal(LiteralExpr::Char(*value))),
-        SExpr::String(source_ref) => Ok(Pattern::Literal(LiteralExpr::String(
-            source_ref.resolve().to_string(),
-        ))),
-        SExpr::Unit => Ok(Pattern::Literal(LiteralExpr::Unit)),
-
-        // Wildcard pattern
-        SExpr::Wildcard => Ok(Pattern::Wildcard),
+        // Literal patterns - follows Pat enum order
+        // Try parsing as literal first
+        _ if parse_literal_expr(_ctx, s_expr).is_ok() => {
+            let literal = parse_literal_expr(_ctx, s_expr)?;
+            Ok(Pat::Lit(literal))
+        }
 
         // Variable patterns
-        SExpr::VarIdent(var_ident) => Ok(Pattern::Var(Ident::VarIdent(var_ident.0.clone()))),
+        SExpr::VarIdent(var_ident) => Ok(Pat::Var(Ident::VarIdent(var_ident.0.clone()))),
 
         // List variable patterns (like xs..)
-        SExpr::ListIdent(list_ident) => Ok(Pattern::ListVar(Ident::VarIdent(list_ident.0.clone()))),
+        SExpr::ListIdent(list_ident) => Ok(Pat::ListVar(Ident::VarIdent(list_ident.0.clone()))),
 
-        // Constructor patterns (without args)
+        // Constructor patterns
         SExpr::CtorIdent(ctor_ident) => {
-            let ident_path = IdentPath(vec![Ident::CtorIdent(ctor_ident.0.clone())]);
-            Ok(Pattern::Constructor {
-                ctor: ident_path,
+            // Simple constructor with no arguments
+            let ident_path = IdentPath(RcMut::new(vec![Ident::CtorIdent(ctor_ident.0.clone())]));
+            Ok(Pat::Ctor {
+                ident: ident_path,
                 args: vec![],
             })
         }
 
-        // List patterns - constructor patterns, tuple patterns, list patterns
+        // Constructor patterns with arguments
         SExpr::List(elems) => {
             if elems.is_empty() {
-                return Err("Empty list pattern not allowed".to_string());
+                return Err("Empty list in pattern".to_string());
             }
 
-            let first = &*elems[0].get();
-            match first {
-                // Tuple patterns with hash
-                SExpr::Hash(_) => {
-                    let mut tuple_elems = Vec::new();
-                    // Skip the hash element, parse the rest as tuple elems
-                    for i in 1..elems.len() {
-                        tuple_elems.push(parse_pattern(_ctx, &elems[i].get())?);
-                    }
-                    Ok(Pattern::Tuple(tuple_elems))
-                }
-
-                // Constructor patterns
+            match &*elems[0].get() {
                 SExpr::CtorIdent(ctor_ident) => {
-                    let ident_path = IdentPath(vec![Ident::CtorIdent(ctor_ident.0.clone())]);
+                    let ident_path =
+                        IdentPath(RcMut::new(vec![Ident::CtorIdent(ctor_ident.0.clone())]));
                     let mut args = Vec::new();
 
-                    // Parse constructor arguments
                     for i in 1..elems.len() {
-                        args.push(parse_pattern(_ctx, &elems[i].get())?);
+                        args.push(parse_pat(_ctx, &elems[i].get())?);
                     }
 
-                    Ok(Pattern::Constructor {
-                        ctor: ident_path,
+                    Ok(Pat::Ctor {
+                        ident: ident_path,
                         args,
                     })
                 }
-
-                _ => {
-                    return Err(format!(
-                        "Unsupported list pattern starting with {:?}",
-                        first
-                    ));
-                }
+                _ => Err(format!(
+                    "Expected constructor in pattern list, got {:?}",
+                    elems[0].get()
+                )),
             }
         }
 
-        // Quoted list patterns
-        SExpr::QuoteList(elems) => {
-            let mut list_elems = Vec::new();
-            let mut rest = None;
+        // Wildcard pattern
+        SExpr::Wildcard => Ok(Pat::Wildcard),
 
-            for element in elems.iter() {
-                match &*element.get() {
-                    SExpr::ListIdent(list_ident) => {
-                        // This is a rest pattern (like xs..)
-                        rest = Some(Box::new(Pattern::ListVar(Ident::VarIdent(
-                            list_ident.0.clone(),
-                        ))));
-                        break;
-                    }
-                    _ => {
-                        list_elems.push(parse_pattern(_ctx, &element.get())?);
-                    }
-                }
-            }
+        // Ellipsis pattern
+        SExpr::Ellipsis => Ok(Pat::Ellipsis),
 
-            Ok(Pattern::List {
-                elems: list_elems,
-                rest,
-            })
-        }
-
-        _ => {
-            unimplemented!("parse_pattern for {s_expr:?} not implemented yet")
-        }
+        _ => Err(format!("Expected pattern, got {:?}", s_expr)),
     }
 }
-*/
 
 // Parse a type expression from an S-expression
 pub fn parse_type_expr(_ctx: &mut ParseContext, s_expr: &SExpr) -> Result<TypeExpr, String> {
@@ -1000,6 +653,142 @@ pub fn parse_type_expr(_ctx: &mut ParseContext, s_expr: &SExpr) -> Result<TypeEx
     }
 }
 
+/// Parse a type pattern following TypePat enum variant order
+fn parse_type_pat(elems: &[RcMut<SExpr>]) -> Result<TypePat, String> {
+    if elems.is_empty() {
+        return Err("Expected type pattern".to_string());
+    }
+
+    match &*elems[0].get() {
+        // TypePat::Wildcard - underscore
+        SExpr::Wildcard if elems.len() == 1 => Ok(TypePat::Wildcard),
+
+        // TypePat::Var - variable identifier as type variable
+        SExpr::VarIdent(var_ident) if elems.len() == 1 => {
+            Ok(TypePat::Var(Ident::VarIdent(var_ident.0.clone())))
+        }
+
+        // TypePat::Ctor - constructor identifier with optional arguments
+        SExpr::CtorIdent(ctor_ident) => {
+            if elems.len() == 1 {
+                // Simple constructor without arguments
+                Ok(TypePat::Ctor {
+                    ident: IdentPath(RcMut::new(vec![Ident::CtorIdent(ctor_ident.0.clone())])),
+                    args: vec![],
+                })
+            } else {
+                // Constructor with arguments
+                let mut args = vec![];
+                for elem in &elems[1..] {
+                    match &*elem.get() {
+                        SExpr::List(arg_elems) => {
+                            args.push(parse_type_pat(arg_elems)?);
+                        }
+                        _ => {
+                            // Single element argument
+                            args.push(parse_type_pat(&[elem.clone()])?);
+                        }
+                    }
+                }
+                Ok(TypePat::Ctor {
+                    ident: IdentPath(RcMut::new(vec![Ident::CtorIdent(ctor_ident.0.clone())])),
+                    args,
+                })
+            }
+        }
+
+        _ => Err("Invalid type pattern".to_string()),
+    }
+}
+
+/// Parse patterns (Pats) - the pattern list part of Pattern struct
+fn parse_pats(elems: &[RcMut<SExpr>]) -> Result<Pats, String> {
+    if elems.is_empty() {
+        return Err("Expected patterns".to_string());
+    }
+
+    if elems.len() == 1 {
+        // Single pattern element - keep as unparsed for later arity resolution
+        Ok(Pats::Unparsed(elems[0].clone()))
+    } else {
+        // Multiple pattern elements - keep as unparsed list for later arity resolution
+        Ok(Pats::Unparsed(RcMut::new(SExpr::List(
+            elems.to_vec().into(),
+        ))))
+    }
+}
+
+/// Parse a pattern with optional guards following Pattern struct requirements
+/// Syntax: pattern elements may include (where guard-expr)
+fn parse_pattern_with_guards(elems: &[RcMut<SExpr>]) -> Result<Pattern, String> {
+    if elems.is_empty() {
+        return Err("Expected pattern".to_string());
+    }
+
+    // Look for guard - a list starting with "where"
+    let mut guard_index = None;
+    for (i, elem) in elems.iter().enumerate() {
+        match &*elem.get() {
+            SExpr::List(guard_elems) if !guard_elems.is_empty() => {
+                if let SExpr::Where = &*guard_elems[0].get() {
+                    guard_index = Some(i);
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let (pattern_elems, guard_elem) = if let Some(idx) = guard_index {
+        // Split at guard: pattern parts before guard, guard element
+        (&elems[..idx], Some(&elems[idx]))
+    } else {
+        // No guards, all elements are patterns
+        (elems, None)
+    };
+
+    // Parse the patterns part
+    let pats = RcMut::new(parse_pats(pattern_elems)?);
+
+    // Parse guard expression if present
+    let guard = if let Some(guard_elem) = guard_elem {
+        match &*guard_elem.get() {
+            SExpr::List(guard_list) if !guard_list.is_empty() => {
+                if let SExpr::Where = &*guard_list[0].get() {
+                    // Parse the guard expression(s) after "where"
+                    let mut guards = vec![];
+                    for expr_elem in &guard_list[1..] {
+                        // For now, create placeholder expressions for guards
+                        // In a full implementation, we'd call parse_expr here
+                        match &*expr_elem.get() {
+                            SExpr::I64(n) => guards.push(Expr::Literal(LiteralExpr::I64(*n))),
+                            SExpr::Bool(b) => guards.push(Expr::Literal(LiteralExpr::Bool(*b))),
+                            SExpr::VarIdent(var_ident) => {
+                                guards.push(Expr::Var(IdentPath(RcMut::new(vec![
+                                    Ident::VarIdent(var_ident.0.clone()),
+                                ]))));
+                            }
+                            _ => {
+                                // Complex guard expressions - placeholder for now
+                                guards.push(Expr::Literal(LiteralExpr::Bool(true)));
+                                // Placeholder
+                            }
+                        }
+                    }
+                    guards
+                } else {
+                    vec![]
+                }
+            }
+            _ => vec![],
+        }
+    } else {
+        vec![]
+    };
+
+    Ok(Pattern { pats, guard })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1051,1142 +840,444 @@ mod tests {
     #[test]
     fn test_parse_literal_expr() {
         let mut ctx = ParseContext::new();
-        
+
         // Test Unit - follows LiteralExpr order
-        let unit_exprs = lex_source("()");
-        let unit_result = parse_literal_expr(&mut ctx, &unit_exprs[0].get());
-        assert_eq!(unit_result, Ok(LiteralExpr::Unit));
-        
+        let unit_sexprs = lex_source("()");
+        let unit_res = parse_literal_expr(&mut ctx, &unit_sexprs[0].get());
+        assert_eq!(unit_res, Ok(LiteralExpr::Unit));
+
         // Test Bool true
-        let bool_true_exprs = lex_source("true");
-        let bool_true_result = parse_literal_expr(&mut ctx, &bool_true_exprs[0].get());
-        assert_eq!(bool_true_result, Ok(LiteralExpr::Bool(true)));
-        
-        // Test Bool false  
-        let bool_false_exprs = lex_source("false");
-        let bool_false_result = parse_literal_expr(&mut ctx, &bool_false_exprs[0].get());
-        assert_eq!(bool_false_result, Ok(LiteralExpr::Bool(false)));
-        
+        let bool_true_sexprs = lex_source("true");
+        let bool_true_res = parse_literal_expr(&mut ctx, &bool_true_sexprs[0].get());
+        assert_eq!(bool_true_res, Ok(LiteralExpr::Bool(true)));
+
+        // Test Bool false
+        let bool_false_sexprs = lex_source("false");
+        let bool_false_res = parse_literal_expr(&mut ctx, &bool_false_sexprs[0].get());
+        assert_eq!(bool_false_res, Ok(LiteralExpr::Bool(false)));
+
         // Test I64
-        let i64_exprs = lex_source("42");
-        let i64_result = parse_literal_expr(&mut ctx, &i64_exprs[0].get());
-        assert_eq!(i64_result, Ok(LiteralExpr::I64(42)));
-        
+        let i64_sexprs = lex_source("42");
+        let i64_res = parse_literal_expr(&mut ctx, &i64_sexprs[0].get());
+        assert_eq!(i64_res, Ok(LiteralExpr::I64(42)));
+
         // Test F64
-        let f64_exprs = lex_source("3.14");
-        let f64_result = parse_literal_expr(&mut ctx, &f64_exprs[0].get());
-        assert_eq!(f64_result, Ok(LiteralExpr::F64(3.14)));
-        
+        let f64_sexprs = lex_source("3.14");
+        let f64_res = parse_literal_expr(&mut ctx, &f64_sexprs[0].get());
+        assert_eq!(f64_res, Ok(LiteralExpr::F64(3.14)));
+
         // Test String
-        let string_exprs = lex_source("\"hello\"");
-        let string_result = parse_literal_expr(&mut ctx, &string_exprs[0].get());
-        assert_eq!(string_result, Ok(LiteralExpr::String("hello".to_string())));
-        
+        let string_sexprs = lex_source("\"hello\"");
+        let string_res = parse_literal_expr(&mut ctx, &string_sexprs[0].get());
+        assert_eq!(string_res, Ok(LiteralExpr::String("hello".to_string())));
+
         // Test Char
-        let char_exprs = lex_source("'x'");
-        let char_result = parse_literal_expr(&mut ctx, &char_exprs[0].get());
-        assert_eq!(char_result, Ok(LiteralExpr::Char('x')));
-        
+        let char_sexprs = lex_source("'x'");
+        let char_res = parse_literal_expr(&mut ctx, &char_sexprs[0].get());
+        assert_eq!(char_res, Ok(LiteralExpr::Char('x')));
+
         // Test error case - non-literal
-        let non_literal_exprs = lex_source("foo");
-        let error_result = parse_literal_expr(&mut ctx, &non_literal_exprs[0].get());
-        assert!(error_result.is_err());
-        
+        let non_literal_sexprs = lex_source("foo");
+        let error_res = parse_literal_expr(&mut ctx, &non_literal_sexprs[0].get());
+        assert!(error_res.is_err());
+
         println!("All literal expression tests passed!");
     }
 
-    /*
-    // Old tests that need to be updated for new AST structure
-
-    // ===========================================================
-    // Basic Literal Tests
-    // ===========================================================
-
     #[test]
-    fn test_parse_integer_literal() {
-        let s_exprs = lex_source("42");
+    fn test_parse_var_expr() {
         let mut ctx = ParseContext::new();
 
-        let expr = parse_expr(&mut ctx, &s_exprs[0].get()).unwrap();
-        assert_eq!(expr, Expr::Literal(LiteralExpr::i64(42)));
+        // Test variable identifier (snake_case)
+        let var_exprs = lex_source("some_var");
+        let var_res = parse_var_expr(&mut ctx, &var_exprs[0].get());
+        match var_res {
+            Ok(IdentPath(idents)) => {
+                let idents_vec = idents.get();
+                assert_eq!(idents_vec.len(), 1);
+                match &idents_vec[0] {
+                    Ident::VarIdent(source_ref) => {
+                        assert_eq!(source_ref.resolve(), "some_var");
+                    }
+                    _ => panic!("Expected VarIdent"),
+                }
+            }
+            _ => panic!("Expected successful IdentPath"),
+        }
+
+        // Test constructor identifier (PascalCase)
+        let ctor_exprs = lex_source("SomeType");
+        let ctor_res = parse_var_expr(&mut ctx, &ctor_exprs[0].get());
+        match ctor_res {
+            Ok(IdentPath(idents)) => {
+                let idents_vec = idents.get();
+                assert_eq!(idents_vec.len(), 1);
+                match &idents_vec[0] {
+                    Ident::CtorIdent(source_ref) => {
+                        assert_eq!(source_ref.resolve(), "SomeType");
+                    }
+                    _ => panic!("Expected CtorIdent"),
+                }
+            }
+            _ => panic!("Expected successful IdentPath"),
+        }
+
+        // Test operator
+        let add_exprs = lex_source("+");
+        let add_res = parse_var_expr(&mut ctx, &add_exprs[0].get());
+        match add_res {
+            Ok(IdentPath(idents)) => {
+                let idents_vec = idents.get();
+                assert_eq!(idents_vec.len(), 1);
+                assert_eq!(idents_vec[0], Ident::Add);
+            }
+            _ => panic!("Expected successful IdentPath for Add"),
+        }
+
+        // Test error case - literal should not parse as variable
+        let literal_exprs = lex_source("42");
+        let error_res = parse_var_expr(&mut ctx, &literal_exprs[0].get());
+        assert!(error_res.is_err());
+
+        println!("All variable expression tests passed!");
     }
 
     #[test]
-    fn test_parse_float_literal() {
-        let s_exprs = lex_source("3.14");
+    fn test_parse_pat() {
         let mut ctx = ParseContext::new();
 
-        let expr = parse_expr(&mut ctx, &s_exprs[0].get()).unwrap();
-        assert_eq!(expr, Expr::Literal(LiteralExpr::F64(3.14)));
-    }
+        // Test literal patterns - follows Pat enum order
+        let i64_exprs = lex_source("42");
+        let i64_res = parse_pat(&mut ctx, &i64_exprs[0].get());
+        assert_eq!(i64_res, Ok(Pat::Lit(LiteralExpr::I64(42))));
 
-    #[test]
-    fn test_parse_string_literal() {
-        let s_exprs = lex_source("\"hello\"");
-        let mut ctx = ParseContext::new();
-
-        let expr = parse_expr(&mut ctx, &s_exprs[0].get()).unwrap();
+        let string_exprs = lex_source("\"hello\"");
+        let string_res = parse_pat(&mut ctx, &string_exprs[0].get());
         assert_eq!(
-            expr,
-            Expr::Literal(LiteralExpr::String("hello".to_string()))
+            string_res,
+            Ok(Pat::Lit(LiteralExpr::String("hello".to_string())))
         );
-    }
 
-    #[test]
-    fn test_parse_char_literal() {
-        let s_exprs = lex_source("'c'");
-        let mut ctx = ParseContext::new();
-
-        let expr = parse_expr(&mut ctx, &s_exprs[0].get()).unwrap();
-        assert_eq!(expr, Expr::Literal(LiteralExpr::Char('c')));
-    }
-
-    #[test]
-    fn test_parse_boolean_literals() {
-        let true_exprs = lex_source("True");
-        let false_exprs = lex_source("False");
-        let mut ctx = ParseContext::new();
-
-        let true_expr = parse_expr(&mut ctx, &true_exprs[0].get()).unwrap();
-        let false_expr = parse_expr(&mut ctx, &false_exprs[0].get()).unwrap();
-
-        assert_eq!(true_expr, Expr::Literal(LiteralExpr::Bool(true)));
-        assert_eq!(false_expr, Expr::Literal(LiteralExpr::Bool(false)));
-    }
-
-    #[test]
-    fn test_parse_unit_literal() {
-        let s_exprs = lex_source("()");
-        let mut ctx = ParseContext::new();
-
-        let expr = parse_expr(&mut ctx, &s_exprs[0].get()).unwrap();
-        assert_eq!(expr, Expr::Literal(LiteralExpr::Unit));
-    }
-
-    // ===========================================================
-    // Variable and Identifier Tests
-    // ===========================================================
-
-    #[test]
-    fn test_parse_variable_identifier() {
-        let s_exprs = lex_source("variable_name");
-        let mut ctx = ParseContext::new();
-
-        let expr = parse_expr(&mut ctx, &s_exprs[0].get()).unwrap();
-        match expr {
-            Expr::Var(IdentPath(idents)) => {
-                assert_eq!(idents.len(), 1);
-                match &idents[0] {
-                    Ident::VarIdent(source_ref) => {
-                        assert_eq!(source_ref.resolve(), "variable_name");
-                    }
-                    _ => panic!("Expected VarIdent"),
-                }
-            }
-            _ => panic!("Expected Var expression"),
-        }
-    }
-
-    #[test]
-    fn test_parse_private_variable_identifier() {
-        let s_exprs = lex_source("_private_var");
-        let mut ctx = ParseContext::new();
-
-        let expr = parse_expr(&mut ctx, &s_exprs[0].get()).unwrap();
-        match expr {
-            Expr::Var(IdentPath(idents)) => {
-                assert_eq!(idents.len(), 1);
-                match &idents[0] {
-                    Ident::VarIdent(source_ref) => {
-                        assert_eq!(source_ref.resolve(), "_private_var");
-                        assert!(source_ref.resolve().starts_with('_'));
-                    }
-                    _ => panic!("Expected VarIdent"),
-                }
-            }
-            _ => panic!("Expected Var expression"),
-        }
-    }
-
-    // ===========================================================
-    // List and Tuple Tests
-    // ===========================================================
-
-    #[test]
-    fn test_parse_list_literal() {
-        let s_exprs = lex_source("'(1 2 3)");
-        let mut ctx = ParseContext::new();
-
-        let expr = parse_expr(&mut ctx, &s_exprs[0].get()).unwrap();
-        match expr {
-            Expr::Literal(LiteralExpr::List(elems)) => {
-                assert_eq!(elems.len(), 3);
-                assert_eq!(elems[0], Expr::Literal(LiteralExpr::i64(1)));
-                assert_eq!(elems[1], Expr::Literal(LiteralExpr::i64(2)));
-                assert_eq!(elems[2], Expr::Literal(LiteralExpr::i64(3)));
-            }
-            _ => panic!("Expected List literal"),
-        }
-    }
-
-    #[test]
-    fn test_parse_tuple_literal() {
-        let s_exprs = lex_source("#(1 \"two\" 3.0)");
-        let mut ctx = ParseContext::new();
-
-        let expr = parse_expr(&mut ctx, &s_exprs[0].get()).unwrap();
-        match expr {
-            Expr::Literal(LiteralExpr::Tuple(elems)) => {
-                assert_eq!(elems.len(), 3);
-                assert_eq!(elems[0], Expr::Literal(LiteralExpr::i64(1)));
-                assert_eq!(
-                    elems[1],
-                    Expr::Literal(LiteralExpr::String("two".to_string()))
-                );
-                assert_eq!(elems[2], Expr::Literal(LiteralExpr::F64(3.0)));
-            }
-            _ => panic!("Expected Tuple literal"),
-        }
-    }
-
-    // ===========================================================
-    // Function Application Tests
-    // ===========================================================
-
-    #[test]
-    fn test_parse_simple_function_application() {
-        let s_exprs = lex_source(r#"(f x)"#);
-        let mut ctx = ParseContext::new();
-
-        let expr = parse_expr(&mut ctx, &s_exprs[0].get()).unwrap();
-        match expr {
-            Expr::App { func, args } => {
-                // Function should be variable 'f'
-                match *func {
-                    Expr::Var(IdentPath(ref idents)) => {
-                        assert_eq!(idents.len(), 1);
-                        match &idents[0] {
-                            Ident::VarIdent(source_ref) => {
-                                assert_eq!(source_ref.resolve(), "f");
-                            }
-                            _ => panic!("Expected VarIdent for function"),
-                        }
-                    }
-                    _ => panic!("Expected Var for function"),
-                }
-
-                // Should have one argument 'x'
-                assert_eq!(args.len(), 1);
-                match &args[0] {
-                    Expr::Var(IdentPath(idents)) => {
-                        assert_eq!(idents.len(), 1);
-                        match &idents[0] {
-                            Ident::VarIdent(source_ref) => {
-                                assert_eq!(source_ref.resolve(), "x");
-                            }
-                            _ => panic!("Expected VarIdent for argument"),
-                        }
-                    }
-                    _ => panic!("Expected Var for argument"),
-                }
-            }
-            _ => panic!("Expected App expression"),
-        }
-    }
-
-    #[test]
-    fn test_parse_spo_syntax() {
-        // Test SPO: (3 + 4) should desugar to (+ 3 4)
-        let s_exprs = lex_source(r#"(3 + 4)"#);
-        let mut ctx = ParseContext::new();
-
-        let expr = parse_expr(&mut ctx, &s_exprs[0].get()).unwrap();
-        match expr {
-            Expr::App { func, args } => {
-                // Function should be '+' operator
-                match *func {
-                    Expr::Var(IdentPath(ref idents)) => {
-                        assert_eq!(idents.len(), 1);
-                        assert_eq!(idents[0], Ident::Add);
-                    }
-                    _ => panic!("Expected Add operator"),
-                }
-
-                // Should have two arguments: 3 and 4
-                assert_eq!(args.len(), 2);
-                assert_eq!(args[0], Expr::Literal(LiteralExpr::i64(3)));
-                assert_eq!(args[1], Expr::Literal(LiteralExpr::i64(4)));
-            }
-            _ => panic!("Expected App expression"),
-        }
-    }
-
-    // ===========================================================
-    // Lambda Function Tests
-    // ===========================================================
-
-    #[test]
-    fn test_parse_simple_lambda() {
-        let s_exprs = lex_source(r#"(lambda x x)"#);
-        let mut ctx = ParseContext::new();
-
-        let expr = parse_expr(&mut ctx, &s_exprs[0].get()).unwrap();
-        match expr {
-            Expr::Lambda { params, body } => {
-                // Should have one parameter 'x'
-                assert_eq!(params.len(), 1);
-                match &params[0] {
-                    Pattern::Var(Ident::VarIdent(source_ref)) => {
-                        assert_eq!(source_ref.resolve(), "x");
-                    }
-                    _ => panic!("Expected Var pattern for parameter"),
-                }
-
-                // Body should be variable 'x'
-                match *body {
-                    Expr::Var(IdentPath(ref idents)) => {
-                        assert_eq!(idents.len(), 1);
-                        match &idents[0] {
-                            Ident::VarIdent(source_ref) => {
-                                assert_eq!(source_ref.resolve(), "x");
-                            }
-                            _ => panic!("Expected VarIdent for body"),
-                        }
-                    }
-                    _ => panic!("Expected Var for body"),
-                }
-            }
-            _ => panic!("Expected Lambda expression"),
-        }
-    }
-
-    #[test]
-    fn test_parse_lambda_with_multiple_params() {
-        let s_exprs = lex_source(r#"(lambda (x y) (x + y))"#);
-        let mut ctx = ParseContext::new();
-
-        let expr = parse_expr(&mut ctx, &s_exprs[0].get()).unwrap();
-        match expr {
-            Expr::Lambda { params, body: _ } => {
-                // Should have two parameters 'x' and 'y'
-                assert_eq!(params.len(), 2);
-                match &params[0] {
-                    Pattern::Var(Ident::VarIdent(source_ref)) => {
-                        assert_eq!(source_ref.resolve(), "x");
-                    }
-                    _ => panic!("Expected Var pattern for first parameter"),
-                }
-                match &params[1] {
-                    Pattern::Var(Ident::VarIdent(source_ref)) => {
-                        assert_eq!(source_ref.resolve(), "y");
-                    }
-                    _ => panic!("Expected Var pattern for second parameter"),
-                }
-            }
-            _ => panic!("Expected Lambda expression"),
-        }
-    }
-
-    // ===========================================================
-    // Pattern Tests
-    // ===========================================================
-
-    #[test]
-    fn test_parse_wildcard_pattern() {
-        let s_exprs = lex_source("_");
-        let mut ctx = ParseContext::new();
-
-        let pattern = parse_pattern(&mut ctx, &s_exprs[0].get()).unwrap();
-        assert_eq!(pattern, Pattern::Wildcard);
-    }
-
-    #[test]
-    fn test_parse_variable_pattern() {
-        let s_exprs = lex_source("x");
-        let mut ctx = ParseContext::new();
-
-        let pattern = parse_pattern(&mut ctx, &s_exprs[0].get()).unwrap();
-        match pattern {
-            Pattern::Var(Ident::VarIdent(source_ref)) => {
-                assert_eq!(source_ref.resolve(), "x");
+        // Test variable patterns
+        let var_exprs = lex_source("some_var");
+        let var_res = parse_pat(&mut ctx, &var_exprs[0].get());
+        match var_res {
+            Ok(Pat::Var(Ident::VarIdent(source_ref))) => {
+                assert_eq!(source_ref.resolve(), "some_var");
             }
             _ => panic!("Expected Var pattern"),
         }
-    }
 
-    #[test]
-    fn test_parse_constructor_pattern() {
-        let s_exprs = lex_source(r#"(Just x)"#);
-        let mut ctx = ParseContext::new();
-
-        let pattern = parse_pattern(&mut ctx, &s_exprs[0].get()).unwrap();
-        match pattern {
-            Pattern::Constructor { ctor, args } => {
-                // Constructor should be 'Just'
-                match ctor {
-                    IdentPath(ref idents) => {
-                        assert_eq!(idents.len(), 1);
-                        match &idents[0] {
-                            Ident::CtorIdent(source_ref) => {
-                                assert_eq!(source_ref.resolve(), "Just");
-                            }
-                            _ => panic!("Expected CtorIdent"),
-                        }
-                    }
-                }
-
-                // Should have one argument pattern 'x'
-                assert_eq!(args.len(), 1);
-                match &args[0] {
-                    Pattern::Var(Ident::VarIdent(source_ref)) => {
-                        assert_eq!(source_ref.resolve(), "x");
-                    }
-                    _ => panic!("Expected Var pattern for argument"),
-                }
-            }
-            _ => panic!("Expected Constructor pattern"),
-        }
-    }
-
-    #[test]
-    fn test_parse_tuple_pattern() {
-        let s_exprs = lex_source("#(a b)");
-        let mut ctx = ParseContext::new();
-
-        let pattern = parse_pattern(&mut ctx, &s_exprs[0].get()).unwrap();
-        match pattern {
-            Pattern::Tuple(elems) => {
-                assert_eq!(elems.len(), 2);
-                match &elems[0] {
-                    Pattern::Var(Ident::VarIdent(source_ref)) => {
-                        assert_eq!(source_ref.resolve(), "a");
-                    }
-                    _ => panic!("Expected Var pattern for first element"),
-                }
-                match &elems[1] {
-                    Pattern::Var(Ident::VarIdent(source_ref)) => {
-                        assert_eq!(source_ref.resolve(), "b");
-                    }
-                    _ => panic!("Expected Var pattern for second element"),
-                }
-            }
-            _ => panic!("Expected Tuple pattern"),
-        }
-    }
-
-    #[test]
-    fn test_parse_list_pattern() {
-        let s_exprs = lex_source(r#"'(x xs..)"#);
-        let mut ctx = ParseContext::new();
-
-        let pattern = parse_pattern(&mut ctx, &s_exprs[0].get()).unwrap();
-
-        match pattern {
-            Pattern::List { elems, rest } => {
-                // Should have one element 'x'
-                assert_eq!(elems.len(), 1);
-                match &elems[0] {
-                    Pattern::Var(Ident::VarIdent(source_ref)) => {
-                        assert_eq!(source_ref.resolve(), "x");
-                    }
-                    _ => panic!("Expected Var pattern for list element"),
-                }
-
-                // Should have rest pattern 'xs..' as ListVar
-                assert!(rest.is_some());
-                match rest.as_ref().unwrap().as_ref() {
-                    Pattern::ListVar(Ident::VarIdent(source_ref)) => {
-                        assert_eq!(source_ref.resolve(), "xs..");
-                    }
-                    other => {
-                        panic!("Expected ListVar pattern for rest, got: {:?}", other);
-                    }
-                }
-            }
-            _ => panic!("Expected List pattern"),
-        }
-    }
-
-    #[test]
-    fn test_parse_list_variable_pattern() {
-        let s_exprs = lex_source(r#"xs.."#);
-        let mut ctx = ParseContext::new();
-
-        let pattern = parse_pattern(&mut ctx, &s_exprs[0].get()).unwrap();
-        match pattern {
-            Pattern::ListVar(Ident::VarIdent(source_ref)) => {
+        // Test list variable patterns
+        let list_var_exprs = lex_source("xs..");
+        let list_var_res = parse_pat(&mut ctx, &list_var_exprs[0].get());
+        match list_var_res {
+            Ok(Pat::ListVar(Ident::VarIdent(source_ref))) => {
                 assert_eq!(source_ref.resolve(), "xs..");
             }
             _ => panic!("Expected ListVar pattern"),
         }
-    }
 
-    // ===========================================================
-    // Type Expression Tests
-    // ===========================================================
-
-    #[test]
-    fn test_parse_simple_type() {
-        let s_exprs = lex_source("Int");
-        let mut ctx = ParseContext::new();
-
-        let type_expr = parse_type_expr(&mut ctx, &s_exprs[0].get()).unwrap();
-        match type_expr {
-            TypeExpr::Ctor { ident, args } => {
-                match ident {
-                    IdentPath(ref idents) => {
-                        assert_eq!(idents.len(), 1);
-                        match &idents[0] {
-                            Ident::CtorIdent(source_ref) => {
-                                assert_eq!(source_ref.resolve(), "Int");
-                            }
-                            _ => panic!("Expected CtorIdent for type"),
-                        }
-                    }
-                }
-                assert_eq!(args.len(), 0);
-            }
-            _ => panic!("Expected Ctor type"),
-        }
-    }
-
-    #[test]
-    fn test_parse_function_type() {
-        let s_exprs = lex_source(r#"(Int -> Bool)"#);
-        let mut ctx = ParseContext::new();
-
-        let type_expr = parse_type_expr(&mut ctx, &s_exprs[0].get()).unwrap();
-        match type_expr {
-            TypeExpr::Ctor { ident, args } => {
-                // Should be Arrow constructor
-                match ident {
-                    IdentPath(ref idents) => {
-                        assert_eq!(idents.len(), 1);
-                        assert_eq!(idents[0], Ident::Arrow);
-                    }
-                }
-
-                // Should have two arguments: Int and Bool
-                assert_eq!(args.len(), 2);
-
-                // First argument should be Int
-                match &args[0] {
-                    TypeExpr::Ctor { ident: IdentPath(ref idents), args } => {
-                        assert_eq!(idents.len(), 1);
-                        match &idents[0] {
-                            Ident::CtorIdent(source_ref) => {
-                                assert_eq!(source_ref.resolve(), "Int");
-                            }
-                            _ => panic!("Expected CtorIdent for first argument"),
-                        }
-                        assert_eq!(args.len(), 0);
-                    }
-                    _ => panic!("Expected Ctor for first argument"),
-                }
-
-                // Second argument should be Bool
-                match &args[1] {
-                    TypeExpr::Ctor { ident: IdentPath(ref idents), args } => {
-                        assert_eq!(idents.len(), 1);
-                        match &idents[0] {
-                            Ident::CtorIdent(source_ref) => {
-                                assert_eq!(source_ref.resolve(), "Bool");
-                            }
-                            _ => panic!("Expected CtorIdent for second argument"),
-                        }
-                        assert_eq!(args.len(), 0);
-                    }
-                    _ => panic!("Expected Ctor for second argument"),
-                }
-            }
-            _ => panic!("Expected Ctor type for arrow"),
-        }
-    }
-
-    #[test]
-    fn test_parse_parameterized_type() {
-        let s_exprs = lex_source(r#"(Maybe a)"#);
-        let mut ctx = ParseContext::new();
-
-        let type_expr = parse_type_expr(&mut ctx, &s_exprs[0].get()).unwrap();
-        match type_expr {
-            TypeExpr::Ctor { ident, args } => {
-                // Constructor should be 'Maybe'
-                match ident {
-                    IdentPath(ref idents) => {
-                        assert_eq!(idents.len(), 1);
-                        match &idents[0] {
-                            Ident::CtorIdent(source_ref) => {
-                                assert_eq!(source_ref.resolve(), "Maybe");
-                            }
-                            _ => panic!("Expected CtorIdent for Maybe"),
-                        }
-                    }
-                }
-
-                // Should have one type argument 'a'
-                assert_eq!(args.len(), 1);
-                match &args[0] {
-                    TypeExpr::Var(IdentPath(ref idents)) => {
-                        assert_eq!(idents.len(), 1);
-                        match &idents[0] {
-                            Ident::VarIdent(source_ref) => {
-                                assert_eq!(source_ref.resolve(), "a");
-                            }
-                            _ => panic!("Expected VarIdent for type argument"),
-                        }
-                    }
-                    _ => panic!("Expected Var type for argument"),
-                }
-            }
-            _ => panic!("Expected Ctor type"),
-        }
-    }
-
-    // ===========================================================
-    // Module Item Tests - Updated for new structure
-    // ===========================================================
-
-    #[test]
-    fn test_parse_type_annotation_new() {
-        let s_exprs = lex_source(r#"(add : (Int -> Int))"#);
-        let mut ctx = ParseContext::new();
-
-        let module_item = parse_module_item(&mut ctx, &s_exprs[0].get()).unwrap();
-        match module_item {
-            ModuleItem::TypeAnnot(type_annot) => {
-                match type_annot.name {
-                    Ident::VarIdent(source_ref) => {
-                        assert_eq!(source_ref.resolve(), "add");
-                    }
-                    _ => panic!("Expected VarIdent for function name"),
-                }
-            }
-            _ => panic!("Expected TypeAnnot module item"),
-        }
-    }
-
-    #[test]
-    fn test_parse_simple_data_binding() {
-        let s_exprs = lex_source(r#"(x = 42)"#);
-        let mut ctx = ParseContext::new();
-
-        let module_item = parse_module_item(&mut ctx, &s_exprs[0].get()).unwrap();
-        match module_item {
-            ModuleItem::Binding(binding) => {
-                match binding.name {
-                    Ident::VarIdent(source_ref) => {
-                        assert_eq!(source_ref.resolve(), "x");
-                    }
-                    _ => panic!("Expected VarIdent for binding name"),
-                }
-                assert_eq!(binding.patterns.len(), 0); // Simple data binding has no patterns
-                match binding.body {
-                    Expr::Literal(LiteralExpr::i64(42)) => {} // Correct
-                    _ => panic!("Expected i64(42) literal"),
-                }
-            }
-            _ => panic!("Expected Binding module item"),
-        }
-    }
-
-    #[test]
-    fn test_parse_function_binding() {
-        let s_exprs = lex_source(r#"(add = (x y) (x + y))"#);
-        let mut ctx = ParseContext::new();
-
-        let module_item = parse_module_item(&mut ctx, &s_exprs[0].get()).unwrap();
-        match module_item {
-            ModuleItem::Binding(binding) => {
-                match binding.name {
-                    Ident::VarIdent(source_ref) => {
-                        assert_eq!(source_ref.resolve(), "add");
-                    }
-                    _ => panic!("Expected VarIdent for function name"),
-                }
-                assert_eq!(binding.patterns.len(), 2); // Two parameters: x and y
-                // Verify body is an application expression
-                match binding.body {
-                    Expr::App { func: _, args } => {
-                        assert_eq!(args.len(), 2);
-                    }
-                    _ => panic!("Expected App expression for body"),
-                }
-            }
-            _ => panic!("Expected Binding module item"),
-        }
-    }
-
-    // Old test that needs to be updated for new AST structure
-    // #[test]
-    // fn test_parse_type_annotation() {
-        let s_exprs = lex_source(
-            r#"
-            (add : (Int -> (Int -> Int)))
-        "#,
-        );
-        let mut ctx = ParseContext::new();
-
-        let decl = parse_decl(&mut ctx, &s_exprs[0].get()).unwrap();
-        match decl {
-            Decl::TypeAnnot { name, type_expr: _ } => match name {
-                Ident::VarIdent(source_ref) => {
-                    assert_eq!(source_ref.resolve(), "add");
-                }
-                _ => panic!("Expected VarIdent for function name"),
-            },
-            _ => panic!("Expected TypeAnnotation declaration"),
-        }
-    }
-
-    #[test]
-    fn test_parse_simple_function_definition() {
-        let s_exprs = lex_source(r#"(add = (x y) (x + y))"#);
-        let mut ctx = ParseContext::new();
-
-        let decl = parse_decl(&mut ctx, &s_exprs[0].get()).unwrap();
-        match decl {
-            Decl::FunctionDef { name, rules } => {
-                // Function name should be 'add'
-                match name {
-                    Ident::VarIdent(source_ref) => {
-                        assert_eq!(source_ref.resolve(), "add");
-                    }
-                    _ => panic!("Expected VarIdent for function name"),
-                }
-
-                // Should have one rule
-                assert_eq!(rules.len(), 1);
-                let rule = &rules[0];
-
-                // Should have two patterns: x and y
-                assert_eq!(rule.patterns.len(), 2);
-                match &rule.patterns[0] {
-                    Pattern::Var(Ident::VarIdent(source_ref)) => {
-                        assert_eq!(source_ref.resolve(), "x");
-                    }
-                    _ => panic!("Expected Var pattern for first parameter"),
-                }
-                match &rule.patterns[1] {
-                    Pattern::Var(Ident::VarIdent(source_ref)) => {
-                        assert_eq!(source_ref.resolve(), "y");
-                    }
-                    _ => panic!("Expected Var pattern for second parameter"),
-                }
-
-                // Body should be (x + y) application
-                match &rule.body {
-                    Expr::App { func: _, args } => {
-                        assert_eq!(args.len(), 2);
-                    }
-                    _ => panic!("Expected App expression for body"),
-                }
-            }
-            _ => panic!("Expected FunctionDef declaration"),
-        }
-    }
-
-    #[test]
-    fn test_parse_data_definition() {
-        let s_exprs = lex_source(
-            r#"
-            (data (Maybe a)
-                Nothing
-                (Just a)
-            )
-        "#,
-        );
-        let mut ctx = ParseContext::new();
-
-        let decl = parse_decl(&mut ctx, &s_exprs[0].get()).unwrap();
-        match decl {
-            Decl::DataDef {
-                name,
-                type_params,
-                constructors,
-            } => {
-                // Type name should be 'Maybe'
-                match name {
-                    Ident::CtorIdent(source_ref) => {
-                        assert_eq!(source_ref.resolve(), "Maybe");
-                    }
-                    _ => panic!("Expected CtorIdent for type name"),
-                }
-
-                // Should have one type parameter 'a'
-                assert_eq!(type_params.len(), 1);
-                match &type_params[0] {
-                    Ident::VarIdent(source_ref) => {
-                        assert_eq!(source_ref.resolve(), "a");
-                    }
-                    _ => panic!("Expected VarIdent for type parameter"),
-                }
-
-                // Should have two constructors: Nothing and Just
-                assert_eq!(constructors.len(), 2);
-                match &constructors[0].name {
+        // Test simple constructor patterns
+        let ctor_exprs = lex_source("Nothing");
+        let ctor_res = parse_pat(&mut ctx, &ctor_exprs[0].get());
+        match ctor_res {
+            Ok(Pat::Ctor { ident, args }) => {
+                let idents = ident.0.get();
+                assert_eq!(idents.len(), 1);
+                match &idents[0] {
                     Ident::CtorIdent(source_ref) => {
                         assert_eq!(source_ref.resolve(), "Nothing");
                     }
-                    _ => panic!("Expected CtorIdent for Nothing constructor"),
+                    _ => panic!("Expected CtorIdent"),
                 }
-                match &constructors[1].name {
+                assert_eq!(args.len(), 0);
+            }
+            _ => panic!("Expected Ctor pattern"),
+        }
+
+        // Test constructor patterns with arguments
+        let ctor_with_args_sexprs = lex_source("(Just x)");
+        let ctor_with_args_res = parse_pat(&mut ctx, &ctor_with_args_sexprs[0].get());
+        match ctor_with_args_res {
+            Ok(Pat::Ctor { ident, args }) => {
+                let idents = ident.0.get();
+                assert_eq!(idents.len(), 1);
+                match &idents[0] {
                     Ident::CtorIdent(source_ref) => {
                         assert_eq!(source_ref.resolve(), "Just");
                     }
-                    _ => panic!("Expected CtorIdent for Just constructor"),
+                    _ => panic!("Expected CtorIdent"),
                 }
-
-                // Nothing should have no fields, Just should have one
-                assert_eq!(constructors[0].fields.len(), 0);
-                assert_eq!(constructors[1].fields.len(), 1);
+                assert_eq!(args.len(), 1);
+                match &args[0] {
+                    Pat::Var(Ident::VarIdent(source_ref)) => {
+                        assert_eq!(source_ref.resolve(), "x");
+                    }
+                    _ => panic!("Expected Var pattern argument"),
+                }
             }
-            _ => panic!("Expected DataDef declaration"),
+            _ => panic!("Expected Ctor pattern with args"),
         }
+
+        // Test wildcard pattern
+        let wildcard_exprs = lex_source("_");
+        let wildcard_res = parse_pat(&mut ctx, &wildcard_exprs[0].get());
+        assert_eq!(wildcard_res, Ok(Pat::Wildcard));
+
+        // Test ellipsis pattern
+        let ellipsis_exprs = lex_source("..");
+        let ellipsis_res = parse_pat(&mut ctx, &ellipsis_exprs[0].get());
+        assert_eq!(ellipsis_res, Ok(Pat::Ellipsis));
+
+        println!("All pattern tests passed!");
     }
 
     #[test]
-    fn test_parse_trait_definition() {
-        let s_exprs = lex_source(
-            r#"
-            (trait (Show a)
-                (show : (a -> String)))
-        "#,
-        );
-        let mut ctx = ParseContext::new();
+    fn test_parse_type_pat() {
+        // Test TypePat::Wildcard
+        let wildcard_exprs = lex_source("_");
+        let wildcard_result = parse_type_pat(&[wildcard_exprs[0].clone()]);
+        assert_eq!(wildcard_result, Ok(TypePat::Wildcard));
 
-        let decl = parse_decl(&mut ctx, &s_exprs[0].get()).unwrap();
-        match decl {
-            Decl::TraitDef {
-                name,
-                type_params,
-                items,
-            } => {
-                // Trait name should be 'Show'
-                match name {
+        // Test TypePat::Var (type variable)
+        let var_exprs = lex_source("a");
+        let var_result = parse_type_pat(&[var_exprs[0].clone()]);
+        match var_result {
+            Ok(TypePat::Var(Ident::VarIdent(source_ref))) => {
+                assert_eq!(source_ref.resolve(), "a");
+            }
+            _ => panic!("Expected TypePat::Var"),
+        }
+
+        // Test TypePat::Ctor without arguments
+        let ctor_simple_exprs = lex_source("Maybe");
+        let ctor_simple_result = parse_type_pat(&[ctor_simple_exprs[0].clone()]);
+        match ctor_simple_result {
+            Ok(TypePat::Ctor { ident, args }) => {
+                let idents = ident.0.get();
+                assert_eq!(idents.len(), 1);
+                match &idents[0] {
                     Ident::CtorIdent(source_ref) => {
-                        assert_eq!(source_ref.resolve(), "Show");
+                        assert_eq!(source_ref.resolve(), "Maybe");
                     }
-                    _ => panic!("Expected CtorIdent for trait name"),
+                    _ => panic!("Expected CtorIdent"),
                 }
+                assert!(args.is_empty());
+            }
+            _ => panic!("Expected TypePat::Ctor"),
+        }
 
-                // Should have one type parameter 'a'
-                assert_eq!(type_params.len(), 1);
-                match &type_params[0] {
-                    Ident::VarIdent(source_ref) => {
+        // Test TypePat::Ctor with arguments (nested type patterns)
+        let ctor_with_args_exprs = lex_source("(Maybe a)");
+        let ctor_with_args_list = match &*ctor_with_args_exprs[0].get() {
+            SExpr::List(elems) => elems.clone(),
+            _ => panic!("Expected list"),
+        };
+        let ctor_with_args_result = parse_type_pat(&ctor_with_args_list);
+        match ctor_with_args_result {
+            Ok(TypePat::Ctor { ident, args }) => {
+                let idents = ident.0.get();
+                assert_eq!(idents.len(), 1);
+                match &idents[0] {
+                    Ident::CtorIdent(source_ref) => {
+                        assert_eq!(source_ref.resolve(), "Maybe");
+                    }
+                    _ => panic!("Expected CtorIdent"),
+                }
+                assert_eq!(args.len(), 1);
+                match &args[0] {
+                    TypePat::Var(Ident::VarIdent(source_ref)) => {
                         assert_eq!(source_ref.resolve(), "a");
                     }
-                    _ => panic!("Expected VarIdent for type parameter"),
-                }
-
-                // Should have one trait item (show method)
-                assert_eq!(items.len(), 1);
-                match &items[0] {
-                    TraitItem::TypeAnnotation { name, type_expr: _ } => match name {
-                        Ident::VarIdent(source_ref) => {
-                            assert_eq!(source_ref.resolve(), "show");
-                        }
-                        _ => panic!("Expected VarIdent for method name"),
-                    },
-                    _ => panic!("Expected TypeAnnotation trait item"),
+                    _ => panic!("Expected TypePat::Var argument"),
                 }
             }
-            _ => panic!("Expected TraitDef declaration"),
+            _ => panic!("Expected TypePat::Ctor with args"),
         }
+
+        println!("All type pattern tests passed!");
     }
 
     #[test]
-    fn test_parse_impl_definition() {
-        let s_exprs = lex_source(
-            r#"
-            (impl Show Bool
-                (show =
-                    True  "True"
-                    False "False")
-                )
-        "#,
-        );
-        let mut ctx = ParseContext::new();
+    fn test_parse_pats() {
+        // Test nullary (empty) - should error
+        let empty_result = parse_pats(&[]);
+        assert!(empty_result.is_err());
 
-        let decl = parse_decl(&mut ctx, &s_exprs[0].get()).unwrap();
-        match decl {
-            Decl::ImplDef {
-                trait_name,
-                type_expr,
-                items,
-            } => {
-                // Trait name should be 'Show'
-                assert!(trait_name.is_some());
-                match trait_name.unwrap() {
-                    IdentPath(ref idents) => {
-                        assert_eq!(idents.len(), 1);
-                        match &idents[0] {
-                            Ident::CtorIdent(source_ref) => {
-                                assert_eq!(source_ref.resolve(), "Show");
-                            }
-                            _ => panic!("Expected CtorIdent for trait name"),
-                        }
-                    }
-                }
+        // Test unary Pats (single pattern) - no parentheses
+        let unary_exprs = lex_source("x");
+        let unary_result = parse_pats(&unary_exprs);
+        match unary_result {
+            Ok(Pats::Unparsed(_)) => {
+                // Expected - single patterns remain unparsed for arity resolution
+            }
+            _ => panic!("Expected Unparsed for unary pattern"),
+        }
 
-                // Type should be Bool
-                match type_expr {
-                    TypeExpr::Ctor {
-                        ident: IdentPath(ref idents),
-                        args,
-                    } => {
-                        assert_eq!(idents.len(), 1);
-                        match &idents[0] {
-                            Ident::CtorIdent(source_ref) => {
-                                assert_eq!(source_ref.resolve(), "Bool");
-                            }
-                            _ => panic!("Expected CtorIdent for Bool"),
-                        }
-                        assert_eq!(args.len(), 0);
-                    }
-                    _ => panic!("Expected Ctor type for Bool"),
-                }
+        // Test binary Pats (pattern list in parentheses)
+        let binary_exprs = lex_source("(x y)");
+        let binary_list = match &*binary_exprs[0].get() {
+            SExpr::List(elems) => elems.clone(),
+            _ => panic!("Expected list for binary pattern"),
+        };
+        let binary_result = parse_pats(&binary_list);
+        match binary_result {
+            Ok(Pats::Unparsed(_)) => {
+                // Expected - multiple patterns remain unparsed for arity resolution
+            }
+            _ => panic!("Expected Unparsed for binary patterns"),
+        }
 
-                // Should have implementation items
-                assert_eq!(items.len(), 1);
-                match &items[0] {
-                    ImplItem::FunctionDef { name, rules } => {
-                        match name {
+        // Test nested Pats (constructor pattern)
+        let nested_exprs = lex_source("(Just x)");
+        let nested_result = parse_pats(&[nested_exprs[0].clone()]);
+        match nested_result {
+            Ok(Pats::Unparsed(_)) => {
+                // Expected - constructor patterns remain unparsed for arity resolution
+            }
+            _ => panic!("Expected Unparsed for nested patterns"),
+        }
+
+        println!("All Pats tests passed!");
+    }
+
+    #[test]
+    fn test_parse_guards() {
+        // Test one guard predicate
+        let one_guard_exprs = lex_source("x (where condition)");
+        let one_guard_result = parse_pattern_with_guards(&one_guard_exprs);
+        match one_guard_result {
+            Ok(Pattern { pats: _, guard }) => {
+                assert_eq!(guard.len(), 1);
+                match &guard[0] {
+                    Expr::Var(IdentPath(idents)) => {
+                        let idents_vec = idents.get();
+                        assert_eq!(idents_vec.len(), 1);
+                        match &idents_vec[0] {
                             Ident::VarIdent(source_ref) => {
-                                assert_eq!(source_ref.resolve(), "show");
+                                assert_eq!(source_ref.resolve(), "condition");
                             }
-                            _ => panic!("Expected VarIdent for method name"),
+                            _ => panic!("Expected VarIdent for guard"),
                         }
-
-                        // Should have pattern matching rules for True and False
-                        assert_eq!(rules.len(), 2);
                     }
+                    _ => panic!("Expected Var expression for single guard"),
                 }
             }
-            _ => panic!("Expected ImplDef declaration"),
-        }
-    }
-
-    #[test]
-    fn test_parse_module_definition() {
-        let s_exprs = lex_source(
-            r#"
-            (mod my_module
-                (data MyType
-                    (MyCons Int)
-                )
-            )
-        "#,
-        );
-        let mut ctx = ParseContext::new();
-
-        let decl = parse_decl(&mut ctx, &s_exprs[0].get()).unwrap();
-        match decl {
-            Decl::ModuleDef { name, items } => {
-                // Module name should be 'my_module'
-                match name {
-                    Ident::VarIdent(source_ref) => {
-                        assert_eq!(source_ref.resolve(), "my_module");
-                    }
-                    _ => panic!("Expected VarIdent for module name"),
-                }
-
-                // Should have one item (the data definition)
-                assert_eq!(items.len(), 1);
-                match &items[0] {
-                    Decl::DataDef { name, .. } => match name {
-                        Ident::CtorIdent(source_ref) => {
-                            assert_eq!(source_ref.resolve(), "MyType");
-                        }
-                        _ => panic!("Expected CtorIdent for data type name"),
-                    },
-                    _ => panic!("Expected DataDef in module"),
-                }
-            }
-            _ => panic!("Expected ModuleDef declaration"),
-        }
-    }
-
-    // ===========================================================
-    // Complete Module Tests
-    // ===========================================================
-
-    #[test]
-    fn test_parse_simple_module() {
-        let source = r#"
-            (id : (a -> a))
-            (id = x x)
-        "#;
-        let s_exprs = lex_source(source);
-        let mut ctx = ParseContext::new();
-
-        let module = parse_module(&mut ctx, &*s_exprs).unwrap();
-        assert_eq!(module.declarations.len(), 2);
-
-        // First declaration should be type annotation
-        match &module.declarations[0] {
-            Decl::TypeAnnot { name, type_expr: _ } => match name {
-                Ident::VarIdent(source_ref) => {
-                    assert_eq!(source_ref.resolve(), "id");
-                }
-                _ => panic!("Expected VarIdent for function name"),
-            },
-            _ => panic!("Expected TypeAnnotation declaration"),
+            _ => panic!("Expected successful Pattern with one guard"),
         }
 
-        // Second declaration should be function definition
-        match &module.declarations[1] {
-            Decl::FunctionDef { name, rules } => {
-                match name {
-                    Ident::VarIdent(source_ref) => {
-                        assert_eq!(source_ref.resolve(), "id");
-                    }
-                    _ => panic!("Expected VarIdent for function name"),
-                }
-                assert_eq!(rules.len(), 1);
-            }
-            _ => panic!("Expected FunctionDef declaration"),
-        }
-    }
-
-    // ===========================================================
-    // Complex Expression Tests
-    // ===========================================================
-
-    #[test]
-    fn test_parse_pattern_matching_expression() {
-        let s_exprs = lex_source(
-            r#"
-            (match x
-                (Nothing 0)
-                ((Just y) y)
-            )
-        "#,
-        );
-        let mut ctx = ParseContext::new();
-
-        let expr = parse_expr(&mut ctx, &s_exprs[0].get()).unwrap();
-        match expr {
-            Expr::Match { expr, arms } => {
-                // Expression should be variable 'x'
-                match *expr {
-                    Expr::Var(IdentPath(ref idents)) => {
-                        assert_eq!(idents.len(), 1);
-                        match &idents[0] {
+        // Test two guard predicates
+        let two_guard_exprs = lex_source("x (where pred1 pred2)");
+        let two_guard_result = parse_pattern_with_guards(&two_guard_exprs);
+        match two_guard_result {
+            Ok(Pattern { pats: _, guard }) => {
+                assert_eq!(guard.len(), 2);
+                // First guard
+                match &guard[0] {
+                    Expr::Var(IdentPath(idents)) => {
+                        let idents_vec = idents.get();
+                        assert_eq!(idents_vec.len(), 1);
+                        match &idents_vec[0] {
                             Ident::VarIdent(source_ref) => {
-                                assert_eq!(source_ref.resolve(), "x");
+                                assert_eq!(source_ref.resolve(), "pred1");
                             }
-                            _ => panic!("Expected VarIdent for match expression"),
+                            _ => panic!("Expected VarIdent for first guard"),
                         }
                     }
-                    _ => panic!("Expected Var for match expression"),
+                    _ => panic!("Expected Var expression for first guard"),
                 }
-
-                // Should have two match arms
-                assert_eq!(arms.len(), 2);
-
-                // First arm: Nothing -> 0
-                match &arms[0].pattern {
-                    Pattern::Constructor {
-                        ctor: IdentPath(ref idents),
-                        args,
-                    } => {
-                        assert_eq!(idents.len(), 1);
-                        match &idents[0] {
-                            Ident::CtorIdent(source_ref) => {
-                                assert_eq!(source_ref.resolve(), "Nothing");
-                            }
-                            _ => panic!("Expected CtorIdent for Nothing"),
-                        }
-                        assert_eq!(args.len(), 0);
-                    }
-                    _ => panic!("Expected Constructor pattern for Nothing"),
-                }
-                assert_eq!(arms[0].body, Expr::Literal(LiteralExpr::i64(0)));
-
-                // Second arm: (Just y) -> y
-                match &arms[1].pattern {
-                    Pattern::Constructor {
-                        ctor: IdentPath(ref idents),
-                        args,
-                    } => {
-                        assert_eq!(idents.len(), 1);
-                        match &idents[0] {
-                            Ident::CtorIdent(source_ref) => {
-                                assert_eq!(source_ref.resolve(), "Just");
-                            }
-                            _ => panic!("Expected CtorIdent for Just"),
-                        }
-                        assert_eq!(args.len(), 1);
-                        match &args[0] {
-                            Pattern::Var(Ident::VarIdent(source_ref)) => {
-                                assert_eq!(source_ref.resolve(), "y");
-                            }
-                            _ => panic!("Expected Var pattern for y"),
-                        }
-                    }
-                    _ => panic!("Expected Constructor pattern for Just"),
-                }
-                match &arms[1].body {
-                    Expr::Var(IdentPath(ref idents)) => {
-                        assert_eq!(idents.len(), 1);
-                        match &idents[0] {
+                // Second guard
+                match &guard[1] {
+                    Expr::Var(IdentPath(idents)) => {
+                        let idents_vec = idents.get();
+                        assert_eq!(idents_vec.len(), 1);
+                        match &idents_vec[0] {
                             Ident::VarIdent(source_ref) => {
-                                assert_eq!(source_ref.resolve(), "y");
+                                assert_eq!(source_ref.resolve(), "pred2");
                             }
-                            _ => panic!("Expected VarIdent for y"),
+                            _ => panic!("Expected VarIdent for second guard"),
                         }
                     }
-                    _ => panic!("Expected Var for match arm body"),
+                    _ => panic!("Expected Var expression for second guard"),
                 }
             }
-            _ => panic!("Expected Match expression"),
+            _ => panic!("Expected successful Pattern with two guards"),
         }
+
+        println!("All guard tests passed!");
     }
 
     #[test]
-    fn test_parse_do_notation() {
-        let s_exprs = lex_source(
-            r#"
-            (do
-                (x := get_value)
-                (pure x))
-        "#,
-        );
-        let mut ctx = ParseContext::new();
-
-        let expr = parse_expr(&mut ctx, &s_exprs[0].get()).unwrap();
-        match expr {
-            Expr::Do { stmts } => {
-                assert_eq!(stmts.len(), 2);
-
-                // First statement should be bind
-                match &stmts[0] {
-                    DoStmt::Bind {
-                        pat: pattern,
-                        expr: _,
-                    } => match pattern {
-                        Pattern::Var(Ident::VarIdent(source_ref)) => {
-                            assert_eq!(source_ref.resolve(), "x");
-                        }
-                        _ => panic!("Expected Var pattern for bind"),
-                    },
-                    _ => panic!("Expected Bind statement"),
+    fn test_parse_pattern_with_guards() {
+        // Test one expr without guard (unary pattern)
+        let one_expr_no_guard = lex_source("x");
+        let one_result = parse_pattern_with_guards(&one_expr_no_guard);
+        match one_result {
+            Ok(Pattern { pats, guard }) => {
+                match &*pats.get() {
+                    Pats::Unparsed(_) => {
+                        // Expected - single pattern
+                    }
+                    _ => panic!("Expected Unparsed for single expr"),
                 }
-
-                // Second statement should be expression
-                match &stmts[1] {
-                    DoStmt::Expr(expr) => match expr {
-                        Expr::App { func: _, args } => {
-                            assert_eq!(args.len(), 1);
-                        }
-                        _ => panic!("Expected App expression in do"),
-                    },
-                    _ => panic!("Expected Expr statement"),
-                }
+                assert_eq!(guard.len(), 0);
             }
-            _ => panic!("Expected Do expression"),
+            _ => panic!("Expected successful one expr Pattern without guard"),
         }
+
+        // Test one expr with guard (unary pattern with guard)
+        let one_expr_with_guard = lex_source("x (where condition)");
+        let one_guard_result = parse_pattern_with_guards(&one_expr_with_guard);
+        match one_guard_result {
+            Ok(Pattern { pats, guard }) => {
+                match &*pats.get() {
+                    Pats::Unparsed(_) => {
+                        // Expected - single pattern
+                    }
+                    _ => panic!("Expected Unparsed for single expr with guard"),
+                }
+                assert_eq!(guard.len(), 1);
+            }
+            _ => panic!("Expected successful one expr Pattern with guard"),
+        }
+
+        // Test two expr without guard (binary pattern)
+        let two_expr_no_guard = lex_source("(x y)");
+        let two_expr_list = match &*two_expr_no_guard[0].get() {
+            SExpr::List(elems) => elems.clone(),
+            _ => panic!("Expected list for binary pattern"),
+        };
+        let two_result = parse_pattern_with_guards(&two_expr_list);
+        match two_result {
+            Ok(Pattern { pats, guard }) => {
+                match &*pats.get() {
+                    Pats::Unparsed(_) => {
+                        // Expected - binary pattern
+                    }
+                    _ => panic!("Expected Unparsed for two expr"),
+                }
+                assert_eq!(guard.len(), 0);
+            }
+            _ => panic!("Expected successful two expr Pattern without guard"),
+        }
+
+        // Test two expr with guard (binary pattern with guard)
+        let two_expr_with_guard = lex_source("(x y) (where condition)");
+        let two_guard_result = parse_pattern_with_guards(&two_expr_with_guard);
+        match two_guard_result {
+            Ok(Pattern { pats, guard }) => {
+                match &*pats.get() {
+                    Pats::Unparsed(_) => {
+                        // Expected - binary pattern
+                    }
+                    _ => panic!("Expected Unparsed for two expr with guard"),
+                }
+                assert_eq!(guard.len(), 1);
+            }
+            _ => panic!("Expected successful two expr Pattern with guard"),
+        }
+
+        println!("All pattern with guards tests passed!");
     }
-    */
 }
